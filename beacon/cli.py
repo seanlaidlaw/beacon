@@ -171,7 +171,7 @@ def cmd_index(args):
         print("Building TF-IDF embeddings...", end=" ", flush=True)
         embedder.build_incremental(conn, changed_node_ids)
         print()
-        print("Building dense embeddings (jina-embeddings-v2-base-code)...")
+        print(f"Building dense embeddings ({embedder._MODEL})...")
         embedder.build_dense_incremental(conn, changed_node_ids)
 
     # ── Phase 6: git change coupling ─────────────────────────────────────────

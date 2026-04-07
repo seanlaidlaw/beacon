@@ -135,7 +135,7 @@ def load_vectorizer(conn: sqlite3.Connection) -> TfidfVectorizer | None:
 
 # ── Dense neural encoder ──────────────────────────────────────────────────────
 
-_MODEL = "jinaai/jina-embeddings-v2-base-code"
+_MODEL = "jinaai/jina-code-embeddings-1.5b"
 _BATCH_SIZE = 64
 
 
@@ -163,7 +163,7 @@ class SentenceEncoder:
         try:
             from sentence_transformers import SentenceTransformer
             print(f"Loading {self.model_name}...", end=" ", flush=True)
-            self._model = SentenceTransformer(self.model_name, trust_remote_code=True)
+            self._model = SentenceTransformer(self.model_name)
             print("done")
             return True
         except Exception as e:
