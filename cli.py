@@ -165,11 +165,14 @@ def cmd_index(args):
         print()
         _resolve_edges(conn, all_edges)
 
-    # ── Phase 5: TF-IDF embeddings ────────────────────────────────────────────
+    # ── Phase 5: TF-IDF + dense embeddings ───────────────────────────────────
     if changed_node_ids:
         print()
         print("Building TF-IDF embeddings...", end=" ", flush=True)
         embedder.build_incremental(conn, changed_node_ids)
+        print()
+        print("Building dense embeddings (jina-embeddings-v2-base-code)...")
+        embedder.build_dense_incremental(conn, changed_node_ids)
 
     # ── Phase 6: git change coupling ─────────────────────────────────────────
     if not args.no_coupling:
@@ -219,21 +222,23 @@ def _finish(conn, root, args):
     n = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
     e = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
     emb = conn.execute("SELECT COUNT(*) FROM node_embeddings").fetchone()[0]
+    dense = conn.execute("SELECT COUNT(*) FROM node_embeddings_dense").fetchone()[0]
     db_path = Path(args.db) if args.db else root / ".vexp" / "index.db"
 
     # Write healthy marker — read by the Claude Code hook to know the index is ready
     healthy = db_path.parent / "healthy"
     healthy.write_text(
-        f"nodes={n}\nedges={e}\nembeddings={emb}\n"
+        f"nodes={n}\nedges={e}\nembeddings={emb}\ndense={dense}\n"
         f"indexed_at={datetime.now(timezone.utc).isoformat()}\n"
     )
 
     print()
     print("─" * 50)
-    print(f"  nodes:      {n:,}")
-    print(f"  edges:      {e:,}")
-    print(f"  embeddings: {emb:,}")
-    print(f"  index:      {db_path}")
+    print(f"  nodes:           {n:,}")
+    print(f"  edges:           {e:,}")
+    print(f"  tfidf embeddings:{emb:,}")
+    print(f"  dense embeddings:{dense:,}")
+    print(f"  index:           {db_path}")
     print("─" * 50)
 
 

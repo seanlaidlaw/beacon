@@ -5,7 +5,7 @@ SQLite schema for pyvexp — mirrors vexp-core schema version 5.
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
 
 DDL = """
 PRAGMA journal_mode=WAL;
@@ -82,6 +82,15 @@ CREATE INDEX IF NOT EXISTS idx_cochange_b ON co_change_edges(file_b);
 CREATE TABLE IF NOT EXISTS node_embeddings (
     node_id     INTEGER PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
     vector_json TEXT NOT NULL,   -- sparse TF-IDF: {"term": weight, ...}
+    updated_at  TEXT NOT NULL
+);
+
+-- Dense embeddings from a code-specific neural model (e.g. jina-embeddings-v2-base-code)
+-- vector is a numpy float32 array serialised with numpy.ndarray.tobytes()
+CREATE TABLE IF NOT EXISTS node_embeddings_dense (
+    node_id     INTEGER PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+    vector      BLOB NOT NULL,   -- float32 numpy bytes, dim=768
+    model_name  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
 );
 

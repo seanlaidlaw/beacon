@@ -73,6 +73,107 @@ def _delete_file_nodes(conn: sqlite3.Connection, rel_path: str) -> None:
     conn.execute("DELETE FROM nodes WHERE file_path=?", (rel_path,))
 
 
+def check_and_reindex(
+    conn: sqlite3.Connection,
+    root: str | Path,
+    repo_alias: str = "primary",
+    silent: bool = False,
+) -> int:
+    """
+    Scan *root* for changed/new/deleted files and incrementally update the index.
+    Returns the number of files that were re-indexed (0 = nothing changed).
+
+    Designed to be called cheaply at query time — the file scan is fast (os.walk
+    with directory pruning) and only changed files trigger re-parsing.
+    """
+    root = Path(root).resolve()
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Current state on disk
+    current_files: dict[str, tuple[Path, str]] = {
+        str(p.relative_to(root)): (p, lang)
+        for p, lang in scanner.scan(root)
+    }
+
+    # Cached state in the DB
+    cached_hashes: dict[str, str] = {
+        r[0]: r[1]
+        for r in conn.execute("SELECT file_path, blake3_hash FROM file_cache").fetchall()
+    }
+
+    changed: list[tuple[str, Path, str]] = []   # (rel, path, lang) — new or modified
+    deleted: list[str] = []                      # rel paths no longer on disk
+
+    # Detect modified / new files
+    for rel, (path, lang) in current_files.items():
+        try:
+            h = _hash_file(path)
+        except OSError:
+            continue
+        if cached_hashes.get(rel) != h:
+            changed.append((rel, path, lang))
+
+    # Detect deleted files (in cache but gone from disk)
+    for rel in cached_hashes:
+        if rel not in current_files:
+            deleted.append(rel)
+
+    if not changed and not deleted:
+        return 0
+
+    if not silent:
+        parts = []
+        if changed:
+            parts.append(f"{len(changed)} changed/new")
+        if deleted:
+            parts.append(f"{len(deleted)} deleted")
+        print(f"[pyvexp] auto-reindex: {', '.join(parts)}", flush=True)
+
+    # Remove deleted files
+    for rel in deleted:
+        _delete_file_nodes(conn, rel)
+        conn.execute("DELETE FROM file_cache WHERE file_path=?", (rel,))
+
+    # Re-index changed/new files
+    changed_node_ids: list[int] = []
+    all_edges: list[symbols.CallEdge] = []
+
+    for rel, path, lang in changed:
+        _delete_file_nodes(conn, rel)
+        try:
+            file_syms = symbols.extract(path, lang, root)
+        except Exception:
+            continue
+
+        for sym in file_syms.symbols:
+            nid = _upsert_node(conn, sym, repo_alias)
+            changed_node_ids.append(nid)
+
+        all_edges.extend(file_syms.edges)
+
+        h = _hash_file(path)
+        conn.execute(
+            "INSERT OR REPLACE INTO file_cache (file_path, blake3_hash, last_indexed_at, node_count) "
+            "VALUES (?, ?, ?, ?)",
+            (rel, h, now, len(file_syms.symbols)),
+        )
+
+    conn.commit()
+
+    if all_edges:
+        _resolve_call_edges(conn, all_edges)
+        conn.commit()
+
+    if changed_node_ids:
+        embedder.build_incremental(conn, changed_node_ids)
+        embedder.build_dense_incremental(conn, changed_node_ids)
+        # Rebuild FTS5 so new nodes are searchable immediately
+        conn.execute("INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')")
+        conn.commit()
+
+    return len(changed) + len(deleted)
+
+
 def index(
     root: str | Path,
     db_path: str | Path | None = None,
@@ -154,9 +255,10 @@ def index(
         conn.commit()
         print(f"Resolved {len(all_edges)} candidate edges")
 
-    # ── Rebuild TF-IDF vectors ─────────────────────────────────────────────
+    # ── Rebuild TF-IDF + dense vectors ────────────────────────────────────
     if changed_node_ids:
         embedder.build_incremental(conn, changed_node_ids)
+        embedder.build_dense_incremental(conn, changed_node_ids)
     else:
         print("No changes — embeddings up to date")
 

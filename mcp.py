@@ -185,6 +185,34 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "resolve_symbols",
+        "description": (
+            "Resolve symbol names or partial FQNs against the indexed symbol table. "
+            "Call this at the start of a task to get precise FQN anchors before "
+            "calling run_pipeline — dramatically improves retrieval for queries that "
+            "mention specific function or class names."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Symbol names or partial FQNs to look up",
+                },
+                "file_hint": {
+                    "type": "string",
+                    "description": "Optional: restrict search to files matching this substring",
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Optional: restrict to this kind (function, class, method, ...)",
+                },
+            },
+            "required": ["names"],
+        },
+    },
 ]
 
 
@@ -198,6 +226,11 @@ class McpServer:
         self.db_path = Path(db_path)
         self._conn = None
         self.session_id = str(uuid.uuid4())
+        # Session-level dedup: track FQNs already sent to avoid resending identical chunks
+        self._sent_fqns: set[str] = set()
+        # Throttle auto-reindex checks to at most once every 30 seconds
+        self._last_reindex_check: float = 0.0
+        self._reindex_interval: float = 30.0
 
     def _conn_lazy(self):
         """Open DB connection on first use (lazy so startup is fast)."""
@@ -215,6 +248,30 @@ class McpServer:
         )
         self._conn.commit()
 
+    def _maybe_reindex(self) -> None:
+        """
+        Check for changed/new/deleted files and update the index if needed.
+        Throttled to run at most once every _reindex_interval seconds.
+        Runs silently — any output goes to stderr so it doesn't pollute MCP JSON.
+        """
+        import time
+        now = time.monotonic()
+        if now - self._last_reindex_check < self._reindex_interval:
+            return
+        self._last_reindex_check = now
+
+        try:
+            from pyvexp.indexer.indexer import check_and_reindex
+            conn = self._conn_lazy()
+            n = check_and_reindex(conn, self.workspace, silent=True)
+            if n > 0:
+                # Reset sent-FQN cache so updated symbols aren't suppressed by dedup
+                self._sent_fqns.clear()
+                import sys
+                print(f"[pyvexp] auto-reindexed {n} file(s)", file=sys.stderr, flush=True)
+        except Exception:
+            pass  # never let a reindex failure break a query
+
     def _auto_observe(self, tool: str, params: dict, result_summary: str):
         """Auto-save a tool_call observation (mirrors vexp-core behaviour)."""
         conn = self._conn_lazy()
@@ -231,6 +288,7 @@ class McpServer:
     def handle_run_pipeline(self, params: dict) -> str:
         from pyvexp.search.capsule import get_capsule, render_capsule
         from pyvexp.search.graph import get_impact_graph, format_impact_tree, get_skeleton, search_logic_flow, format_flow
+        from pyvexp.search.query import expand_query
 
         task = params["task"]
         max_tokens = int(params.get("max_tokens", 10_000))
@@ -238,6 +296,10 @@ class McpServer:
         explicit_steps = params.get("steps")
         conn = self._conn_lazy()
         parts: list[str] = []
+
+        self._maybe_reindex()
+        # Query expansion: resolve symbol names to FQN anchors
+        _, anchor_fqns = expand_query(conn, task)
 
         if explicit_steps:
             # Advanced: user-specified pipeline steps
@@ -265,7 +327,10 @@ class McpServer:
                     parts.append(self.handle_save_observation({"content": obs, "type": "insight"}))
         else:
             # Default pipeline based on preset
-            cap = get_capsule(conn, task, max_tokens=max_tokens // 2, pivot_depth=2)
+            cap = get_capsule(conn, task, max_tokens=max_tokens // 2, pivot_depth=2,
+                              exclude_fqns=self._sent_fqns, anchor_fqns=anchor_fqns or None)
+            # Track what was sent for session-level dedup
+            self._sent_fqns.update(n.fqn for n in cap.nodes)
             parts.append(render_capsule(cap))
 
             if preset in ("auto", "modify", "debug", "refactor") and cap.nodes:
@@ -289,15 +354,22 @@ class McpServer:
 
     def handle_get_context_capsule(self, params: dict) -> str:
         from pyvexp.search.capsule import get_capsule, render_capsule
+        from pyvexp.search.query import expand_query
+        self._maybe_reindex()
         conn = self._conn_lazy()
+        query = params["query"]
+        _, anchor_fqns = expand_query(conn, query)
         cap = get_capsule(
             conn,
-            params["query"],
+            query,
             max_tokens=int(params.get("max_tokens", 8_000)),
             pivot_depth=int(params.get("pivot_depth", 2)),
+            exclude_fqns=self._sent_fqns,
+            anchor_fqns=anchor_fqns or None,
         )
+        self._sent_fqns.update(n.fqn for n in cap.nodes)
         result = render_capsule(cap)
-        self._auto_observe("get_context_capsule", params, f"query={params['query']!r}, nodes={len(cap.nodes)}")
+        self._auto_observe("get_context_capsule", params, f"query={query!r}, nodes={len(cap.nodes)}")
         return result
 
     def handle_get_impact_graph(self, params: dict) -> str:
@@ -545,6 +617,55 @@ class McpServer:
         conn.commit()
         return f"Submitted {inserted} LSP edge(s), {merged} merged into search graph"
 
+    def handle_resolve_symbols(self, params: dict) -> str:
+        self._maybe_reindex()
+        conn = self._conn_lazy()
+        names = params.get("names", [])
+        file_hint = params.get("file_hint", "")
+        kind_filter = params.get("kind", "")
+
+        if not names:
+            return "No names provided."
+
+        lines = ["# Symbol resolution\n"]
+        for name in names:
+            # Exact name match
+            query = "SELECT fqn, file_path, kind, start_line, signature FROM nodes WHERE name=?"
+            binds: list = [name]
+            if file_hint:
+                query += " AND file_path LIKE ?"
+                binds.append(f"%{file_hint}%")
+            if kind_filter:
+                query += " AND kind=?"
+                binds.append(kind_filter)
+            query += " LIMIT 5"
+            rows = conn.execute(query, binds).fetchall()
+
+            if not rows:
+                # Partial FQN match
+                rows = conn.execute(
+                    "SELECT fqn, file_path, kind, start_line, signature FROM nodes "
+                    "WHERE fqn LIKE ? LIMIT 5",
+                    (f"%{name}%",),
+                ).fetchall()
+
+            lines.append(f"## `{name}`")
+            if not rows:
+                lines.append("  not found in index\n")
+            else:
+                for r in rows:
+                    lines.append(f"  FQN:  {r[0]}")
+                    lines.append(f"  File: {r[1]}:{r[3]}  ({r[2]})")
+                    if r[4]:
+                        lines.append(f"  Sig:  {r[4][:120]}")
+                lines.append("")
+
+        lines.append(
+            "\nUse these FQNs directly in `run_pipeline` or `get_impact_graph` "
+            "for precise graph-traversal based retrieval."
+        )
+        return "\n".join(lines)
+
     def handle_workspace_setup(self, params: dict) -> str:
         root = Path(params.get("workspace_root") or self.workspace)
         vexp_dir = root / ".vexp"
@@ -577,6 +698,7 @@ class McpServer:
         "search_memory":        handle_search_memory,
         "submit_lsp_edges":     handle_submit_lsp_edges,
         "workspace_setup":      handle_workspace_setup,
+        "resolve_symbols":      handle_resolve_symbols,
     }
 
     def call_tool(self, name: str, params: dict) -> str:

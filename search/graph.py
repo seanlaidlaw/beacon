@@ -50,39 +50,57 @@ def get_impact_graph(
     if root is None:
         return graph
 
-    visited: dict[str, int] = {root["fqn"]: 0}   # fqn → depth
-    queue: deque[tuple[int, str, int]] = deque([(root["id"], root["fqn"], 0)])
+    visited: dict[int, tuple[str, int]] = {root["id"]: (root["fqn"], 0)}  # id → (fqn, depth)
+    frontier: list[int] = [root["id"]]
 
-    while queue:
-        nid, fqn, d = queue.popleft()
-        if d >= depth:
-            continue
+    for current_depth in range(depth):
+        if not frontier:
+            break
+        ph = ",".join("?" * len(frontier))
 
-        # Who calls / imports this node?
-        callers = conn.execute(
-            """SELECT n.id, n.fqn, n.file_path, n.kind, e.type
-               FROM edges e
-               JOIN nodes n ON n.id = e.source_id
-               WHERE e.target_id = ?""",
-            (nid,),
+        # Batch: all callers of every node in the current frontier
+        caller_rows = conn.execute(
+            f"""SELECT n.id, n.fqn, n.file_path, n.kind, e.type, e.target_id
+                FROM edges e
+                JOIN nodes n ON n.id = e.source_id
+                WHERE e.target_id IN ({ph})""",
+            frontier,
         ).fetchall()
 
-        for row in callers:
-            caller_fqn = row["fqn"]
-            if caller_fqn in visited:
+        # Also include cross-repo edges if requested
+        if cross_repo:
+            xr_rows = conn.execute(
+                f"""SELECT 0 AS id, cr.source_fqn AS fqn, cr.source_repo AS file_path,
+                           'function' AS kind, cr.type AS type, 0 AS target_id
+                    FROM cross_repo_edges cr
+                    WHERE cr.target_fqn IN (
+                        SELECT fqn FROM nodes WHERE id IN ({ph})
+                    )""",
+                frontier,
+            ).fetchall()
+            caller_rows = list(caller_rows) + list(xr_rows)
+
+        next_frontier: list[int] = []
+        target_fqns = {nid: visited[nid][0] for nid in frontier}
+
+        for row in caller_rows:
+            caller_id = row[0]
+            caller_fqn = row[1]
+            target_fqn = target_fqns.get(row[5], root["fqn"])
+            if caller_id in visited:
                 continue
-            visited[caller_fqn] = d + 1
+            visited[caller_id] = (caller_fqn, current_depth + 1)
             graph.nodes.append(ImpactNode(
                 fqn=caller_fqn,
-                file_path=row["file_path"],
-                kind=row["kind"],
-                depth=d + 1,
-                edge_type=row["type"],
+                file_path=row[2],
+                kind=row[3],
+                depth=current_depth + 1,
+                edge_type=row[4],
             ))
-            graph.edges.append((caller_fqn, fqn, row["type"]))
-            caller_id = conn.execute("SELECT id FROM nodes WHERE fqn=?", (caller_fqn,)).fetchone()
-            if caller_id:
-                queue.append((caller_id[0], caller_fqn, d + 1))
+            graph.edges.append((caller_fqn, target_fqn, row[4]))
+            next_frontier.append(caller_id)
+
+        frontier = next_frontier
 
     return graph
 

@@ -87,6 +87,7 @@ def _expand_neighbors(
     """
     visited: dict[int, str] = {}
     frontier = list(seed_ids)
+    prev_frontier: set[int] = set(seed_ids)
 
     for _ in range(depth):
         if not frontier:
@@ -110,7 +111,9 @@ def _expand_neighbors(
             if nid not in visited and nid not in seed_ids:
                 visited[nid] = "caller"
 
-        frontier = [nid for nid in visited if nid not in seed_ids]
+        # Advance to only the newly discovered nodes (not all visited)
+        frontier = [nid for nid in visited if nid not in seed_ids and nid not in prev_frontier]
+        prev_frontier = set(visited.keys())
 
     return visited
 
@@ -200,6 +203,8 @@ def get_capsule(
     max_tokens: int = DEFAULT_MAX_TOKENS,
     pivot_depth: int = 2,
     include_observations: bool = True,
+    exclude_fqns: set[str] | None = None,
+    anchor_fqns: list[str] | None = None,
 ) -> Capsule:
     """
     Build a context capsule for *query* within *max_tokens* budget.
@@ -214,11 +219,14 @@ def get_capsule(
     cap = Capsule(query=query, token_budget=max_tokens)
     budget = max_tokens
     all_nodes: list[CapsuleNode] = []
+    exclude = exclude_fqns or set()
 
     # ── Step 1: seed nodes ────────────────────────────────────────────────
-    seed_results = search(conn, query, limit=15)
+    seed_results = search(conn, query, limit=15, anchor_fqns=anchor_fqns)
     seed_ids = [r.node_id for r in seed_results]
     for r in seed_results:
+        if r.fqn in exclude:
+            continue
         cn = _node_to_capsule(r, "seed")
         all_nodes.append(cn)
 
@@ -249,8 +257,10 @@ def get_capsule(
 
     # ── Step 3: co-change expansion ───────────────────────────────────────
     seed_files = list({r.file_path for r in seed_results})
-    co_nodes = _co_change_nodes(conn, seed_files, budget // 4)
-    all_nodes.extend(co_nodes)
+    # Pass the actual remaining budget (after seeds + neighbors already tallied)
+    seed_tokens = sum(min(n.token_estimate, MAX_NODE_TOKENS) for n in all_nodes)
+    co_nodes = _co_change_nodes(conn, seed_files, max(0, budget - seed_tokens))
+    all_nodes.extend(cn for cn in co_nodes if cn.fqn not in exclude)
 
     # ── Step 4: deduplicate and sort by score ─────────────────────────────
     seen_fqns: set[str] = set()
@@ -270,12 +280,15 @@ def get_capsule(
         used += tok
 
     # ── Step 6: observations ──────────────────────────────────────────────
-    if include_observations:
-        all_node_ids = [
-            conn.execute("SELECT id FROM nodes WHERE fqn=?", (cn.fqn,)).fetchone()
-            for cn in cap.nodes
+    if include_observations and cap.nodes:
+        # Batch FQN → id lookup (single query)
+        fqns = [cn.fqn for cn in cap.nodes]
+        ph = ",".join("?" * len(fqns))
+        node_id_list = [
+            r[0] for r in conn.execute(
+                f"SELECT id FROM nodes WHERE fqn IN ({ph})", fqns
+            ).fetchall()
         ]
-        node_id_list = [r[0] for r in all_node_ids if r]
         cap.observations = _fetch_observations(conn, node_id_list)
 
     cap.token_estimate = used
