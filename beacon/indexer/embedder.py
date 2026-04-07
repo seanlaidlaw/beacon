@@ -136,21 +136,23 @@ def load_vectorizer(conn: sqlite3.Connection) -> TfidfVectorizer | None:
 # ── Dense neural encoder ──────────────────────────────────────────────────────
 
 _MODEL = "jinaai/jina-embeddings-v2-base-code"
-
 _BATCH_SIZE = 64
 
 
 class SentenceEncoder:
     """
-    Wraps a HuggingFace model for batch text → float32 embedding.
+    Wraps jinaai/jina-embeddings-v2-base-code via sentence-transformers.
+
+    Using sentence-transformers rather than raw transformers/AutoModel avoids:
+    - trust_remote_code warnings (sentence-transformers handles Jina natively)
+    - Internal transformers API breakage (find_pruneable_heads_and_indices etc.)
+
     Loaded lazily; gracefully returns None if unavailable.
     """
 
     def __init__(self, model_name: str):
         self.model_name = model_name
         self._model = None
-        self._tokenizer = None
-        self._device = None
         self._failed = False
 
     def _load(self) -> bool:
@@ -159,14 +161,9 @@ class SentenceEncoder:
         if self._model is not None:
             return True
         try:
-            import torch
-            from transformers import AutoModel, AutoTokenizer
-            self._device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"Loading {self.model_name} on {self._device}...", end=" ", flush=True)
-            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
-            self._model = AutoModel.from_pretrained(self.model_name, trust_remote_code=True)
-            self._model.eval()
-            self._model.to(self._device)
+            from sentence_transformers import SentenceTransformer
+            print(f"Loading {self.model_name}...", end=" ", flush=True)
+            self._model = SentenceTransformer(self.model_name, trust_remote_code=True)
             print("done")
             return True
         except Exception as e:
@@ -175,27 +172,17 @@ class SentenceEncoder:
             return False
 
     def encode(self, texts: list[str]) -> np.ndarray | None:
-        """Encode a list of texts. Returns (N, dim) float32 array or None on failure."""
+        """Encode texts. Returns (N, dim) float32 L2-normalised array or None on failure."""
         if not self._load():
             return None
         try:
-            import torch
-            all_vecs = []
-            for i in range(0, len(texts), _BATCH_SIZE):
-                batch = texts[i: i + _BATCH_SIZE]
-                enc = self._tokenizer(
-                    batch, padding=True, truncation=True,
-                    max_length=512, return_tensors="pt",
-                ).to(self._device)
-                with torch.no_grad():
-                    out = self._model(**enc)
-                # Mean-pool over token dimension
-                mask = enc["attention_mask"].unsqueeze(-1).float()
-                vecs = (out.last_hidden_state * mask).sum(1) / mask.sum(1)
-                # L2-normalise
-                vecs = vecs / (vecs.norm(dim=-1, keepdim=True) + 1e-8)
-                all_vecs.append(vecs.cpu().float().numpy())
-            return np.concatenate(all_vecs, axis=0)
+            vecs = self._model.encode(
+                texts,
+                batch_size=_BATCH_SIZE,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            return vecs.astype(np.float32)
         except Exception as e:
             print(f"Encoding error: {e}")
             return None
