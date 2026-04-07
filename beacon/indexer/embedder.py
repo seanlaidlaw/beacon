@@ -135,8 +135,16 @@ def load_vectorizer(conn: sqlite3.Connection) -> TfidfVectorizer | None:
 
 # ── Dense neural encoder ──────────────────────────────────────────────────────
 
-_MODEL = "jinaai/jina-code-embeddings-1.5b"
 _BATCH_SIZE = 64
+
+
+def _current_model() -> str:
+    """Return the configured dense model ID (reads ~/.config/beacon/config.yaml)."""
+    try:
+        from beacon.config import get_dense_model
+        return get_dense_model()
+    except Exception:
+        return "jinaai/jina-embeddings-v2-base-code"
 
 
 class SentenceEncoder:
@@ -188,14 +196,15 @@ class SentenceEncoder:
             return None
 
 
-# Module-level singleton — loaded once per process
+# Module-level singleton — reset when model changes
 _encoder: SentenceEncoder | None = None
 
 
 def get_encoder() -> SentenceEncoder:
     global _encoder
-    if _encoder is None:
-        _encoder = SentenceEncoder(_MODEL)
+    model = _current_model()
+    if _encoder is None or _encoder.model_name != model:
+        _encoder = SentenceEncoder(model)
     return _encoder
 
 
