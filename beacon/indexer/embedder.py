@@ -169,13 +169,17 @@ class SentenceEncoder:
         if self._model is not None:
             return True
         try:
+            import sys
             from sentence_transformers import SentenceTransformer
-            print(f"Loading {self.model_name}...", end=" ", flush=True)
+            if _VERBOSE:
+                print(f"Loading {self.model_name}...", end=" ", flush=True, file=sys.stderr)
             self._model = SentenceTransformer(self.model_name)
-            print("done")
+            if _VERBOSE:
+                print("done", file=sys.stderr)
             return True
         except Exception as e:
-            print(f"failed ({e})")
+            if _VERBOSE:
+                print(f"failed ({e})", file=sys.stderr)
             self._failed = True
             return False
 
@@ -195,6 +199,9 @@ class SentenceEncoder:
             print(f"Encoding error: {e}")
             return None
 
+
+# Set to False to suppress all loading output (used by interactive CLI mode)
+_VERBOSE: bool = True
 
 # Module-level singleton — reset when model changes
 _encoder: SentenceEncoder | None = None

@@ -99,6 +99,7 @@ def cmd_index(args):
     from rich.prompt import Confirm
 
     _suppress_ml_noise()
+    _suppress_tqdm()
     from beacon.indexer import scanner, symbols, embedder, coupling
     from beacon.schema import open_db
     import beacon.config as cfg
@@ -386,17 +387,18 @@ def _finish(conn, root: Path, db_path: Path, console):
 
 # ── ask ───────────────────────────────────────────────────────────────────────
 
+# (display_label, rich_color)  — full words, soft palette
 _KIND_STYLE: dict[str, tuple[str, str]] = {
-    "function":  ("fn",     "blue"),
-    "method":    ("mth",    "cyan"),
-    "class":     ("cls",    "magenta"),
-    "struct":    ("struct", "magenta"),
-    "interface": ("iface",  "green"),
-    "type":      ("type",   "green"),
-    "variable":  ("var",    "yellow"),
-    "constant":  ("const",  "yellow"),
-    "module":    ("mod",    "dim"),
-    "heading":   ("h",      "dim"),
+    "function":  ("function",  "steel_blue1"),
+    "method":    ("method",    "dark_cyan"),
+    "class":     ("class",     "medium_orchid"),
+    "struct":    ("struct",    "medium_orchid"),
+    "interface": ("interface", "medium_spring_green"),
+    "type":      ("type",      "medium_spring_green"),
+    "variable":  ("variable",  "light_goldenrod2"),
+    "constant":  ("constant",  "light_goldenrod2"),
+    "module":    ("module",    "grey70"),
+    "heading":   ("heading",   "grey70"),
 }
 
 _EXT_LEXER: dict[str, str] = {
@@ -415,15 +417,50 @@ def _lexer(file_path: str) -> str:
     return _EXT_LEXER.get(Path(file_path).suffix.lower(), "text")
 
 
+def _suppress_tqdm() -> None:
+    """Replace tqdm progress bars with a no-op so they don't corrupt rich output."""
+    try:
+        import tqdm
+        # Monkey-patch tqdm to be silent
+        class _SilentTqdm:
+            def __init__(self, *a, **kw): pass
+            def __iter__(self): return iter([])
+            def update(self, *a, **kw): pass
+            def close(self): pass
+            def set_description(self, *a, **kw): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+        tqdm.tqdm = _SilentTqdm
+        # Also patch tqdm.auto which sentence-transformers uses
+        import tqdm.auto
+        tqdm.auto.tqdm = _SilentTqdm
+    except Exception:
+        pass
+
+
 def _suppress_ml_noise() -> None:
-    """Silence noisy transformers/sentence-transformers log output."""
+    """Silence noisy transformers/sentence-transformers log and warning output."""
     import logging
     import warnings
     import os
+    # Set env vars before any lazy imports pick them up
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
-    for name in ("transformers", "sentence_transformers", "huggingface_hub"):
+    os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+    os.environ["SENTENCE_TRANSFORMERS_LOGLEVEL"] = "ERROR"
+    # Suppress Python warnings from these libraries
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
+    # Set Python logger levels for all relevant namespaces
+    for name in ("transformers", "sentence_transformers", "huggingface_hub",
+                 "transformers.modeling_utils", "transformers.configuration_utils",
+                 "transformers.tokenization_utils_base"):
         logging.getLogger(name).setLevel(logging.ERROR)
+    # Use transformers' own verbosity API if already imported
+    try:
+        import transformers
+        transformers.logging.set_verbosity_error()
+    except Exception:
+        pass
 
 
 def _render_seed(console, node, idx: int) -> None:
@@ -546,9 +583,344 @@ def _render_observations(console, observations) -> None:
     ))
 
 
+# ── Interactive ask TUI ────────────────────────────────────────────────────────
+
+def _getch() -> str:
+    """
+    Read one keypress from stdin without echoing.
+
+    Returns a single character for printable keys, or one of the named
+    constants 'UP', 'DOWN', 'LEFT', 'RIGHT' for arrow keys.
+    Returns 'q' for Ctrl+C, Ctrl+D, and bare Escape.
+
+    Uses os.read(fd, 1) — raw syscall with no Python buffering — so that
+    select() on the same fd reliably detects whether the rest of an escape
+    sequence has arrived.  sys.stdin.buffer.read() has a read-ahead buffer
+    that drains the fd before select() can see the bytes.
+    """
+    import sys, os, select
+    try:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            b = os.read(fd, 1)
+            if b in (b'\x03', b'\x04'):          # Ctrl+C / Ctrl+D
+                return 'q'
+            if b == b'\x1b':
+                # Wait up to 100 ms for the rest of a CSI escape sequence.
+                # A bare Escape key produces no further bytes → return 'q'.
+                if select.select([fd], [], [], 0.1)[0]:
+                    b2 = os.read(fd, 1)
+                    if b2 == b'[':
+                        b3 = os.read(fd, 1)
+                        return {b'A': 'UP', b'B': 'DOWN',
+                                b'C': 'RIGHT', b'D': 'LEFT'}.get(b3, 'q')
+                return 'q'
+            return b.decode('utf-8', errors='replace')
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except Exception:
+        return 'q'
+
+
+def _source_content(node, conn, root: Path):
+    """
+    Return a Syntax renderable with the actual source lines for *node*.
+    Falls back to the indexed signature if the file cannot be read.
+    Used inside the source panel in the interactive view.
+    """
+    from rich.syntax import Syntax
+    from rich.text import Text
+
+    # Fetch end_line from DB (not stored in CapsuleNode)
+    row = conn.execute(
+        "SELECT end_line FROM nodes WHERE fqn=?", (node.fqn,)
+    ).fetchone()
+    end_line = row[0] if row and row[0] else None
+
+    file_path = root / node.file_path
+    start = max(0, (node.start_line or 1) - 1)
+
+    try:
+        lines = file_path.read_text(errors="replace").splitlines()
+        snippet_lines = lines[start:end_line] if end_line else lines[start:start + 60]
+        snippet = "\n".join(snippet_lines)
+        return Syntax(
+            snippet,
+            _lexer(node.file_path),
+            theme="nord",
+            line_numbers=True,
+            start_line=node.start_line or 1,
+            background_color="default",
+            word_wrap=False,
+        )
+    except Exception:
+        sig = node.signature.strip() if node.signature else "(no source)"
+        return Syntax(sig, _lexer(node.file_path), theme="nord",
+                      background_color="default")
+
+
+def _source_panel(node, conn, root: Path):
+    """Standalone Panel wrapping source content — used in non-interactive ask output."""
+    from rich.panel import Panel
+    _, color = _KIND_STYLE.get(node.kind, ("?", "white"))
+    return Panel(_source_content(node, conn, root), border_style=color, padding=(0, 1))
+
+
+def _results_table(seeds, selected: int):
+    """
+    Build a rich Table listing all result rows.
+    The selected row is highlighted; all others are dim.
+    Returns a Table renderable.
+    """
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
+
+    tbl = Table(
+        box=None,
+        show_header=False,
+        padding=(0, 1),
+        expand=False,
+        show_edge=False,
+    )
+    tbl.add_column("num",   width=4,  no_wrap=True, justify="right")
+    tbl.add_column("kind",  width=11, no_wrap=True)
+    tbl.add_column("name",  width=44, no_wrap=True)
+    tbl.add_column("score", width=5,  no_wrap=True, justify="right")
+    tbl.add_column("loc",   no_wrap=True)
+    tbl.add_column("mark",  width=1,  no_wrap=True)
+
+    for i, node in enumerate(seeds):
+        label, color = _KIND_STYLE.get(node.kind, (node.kind, "white"))
+        short = node.fqn.split("::")[-1] if "::" in node.fqn else node.fqn
+        if len(short) > 43:
+            short = short[:41] + "…"
+        fp = f"{Path(node.file_path).name}:{node.start_line}"
+        sel = (i == selected)
+
+        if sel:
+            tbl.add_row(
+                Text(f"[{i+1}]",    style="bold cyan"),
+                Text(label,          style=f"bold {color}"),
+                Text(short,          style="bold white"),
+                Text(f"{node.score:.3f}", style="bold cyan"),
+                Text(fp,             style="cyan"),
+                Text("▶",            style="bold cyan"),
+            )
+        else:
+            tbl.add_row(
+                Text(f"[{i+1}]",    style="dim"),
+                Text(label,          style=f"dim {color}"),
+                Text(short,          style="dim white"),
+                Text(f"{node.score:.3f}", style="dim"),
+                Text(fp,             style="dim"),
+                Text(""),
+            )
+
+    return tbl
+
+
+def _render_interactive_view(query: str, cap, seeds, selected: int,
+                              conn, root: Path):
+    from rich.console import Group
+    from rich.rule import Rule
+    from rich.text import Text
+    from rich.panel import Panel
+
+    parts = []
+
+    # ── Query rule ────────────────────────────────────────────────────────────
+    parts.append(Rule(
+        Text.assemble(("◆ ", "cyan"), (query, "bold white")),
+        style="cyan",
+    ))
+    parts.append(Text(""))
+
+    # ── Result table (all rows, selected highlighted) ─────────────────────────
+    parts.append(_results_table(seeds, selected))
+    parts.append(Text(""))
+
+    # ── Source panel for the selected result ──────────────────────────────────
+    node = seeds[selected]
+    label, color = _KIND_STYLE.get(node.kind, (node.kind, "white"))
+    short = node.fqn.split("::")[-1] if "::" in node.fqn else node.fqn
+    panel_title = Text.assemble(
+        (f" {label} ", f"bold reverse {color}"),
+        ("  ", ""),
+        (short, "bold white"),
+        ("  ", ""),
+        (f"{node.file_path}:{node.start_line}", "dim"),
+    )
+    parts.append(Panel(
+        _source_content(node, conn, root),
+        title=panel_title,
+        border_style=color,
+        padding=(0, 0),
+    ))
+
+    # ── Footer stats ──────────────────────────────────────────────────────────
+    parts.append(Text(""))
+    callers_n = sum(1 for n in cap.nodes if n.role == "caller")
+    callees_n = sum(1 for n in cap.nodes if n.role == "callee")
+    co_n      = sum(1 for n in cap.nodes if n.role == "co_change")
+    stats = Text()
+    if callers_n:
+        stats.append(f"  ◄ {callers_n} callers", style="dim blue")
+    if callees_n:
+        stats.append(f"  ► {callees_n} callees", style="dim cyan")
+    if co_n:
+        stats.append(f"  ↔ {co_n} co-change", style="dim yellow")
+    stats.append(f"  ·  ~{cap.token_estimate:,} tokens", style="dim")
+    parts.append(stats)
+
+    # ── Hint bar ──────────────────────────────────────────────────────────────
+    parts.append(Text(""))
+    hints = Text()
+    hints.append("  [↑↓]", style="bold cyan")
+    hints.append(" navigate  ", style="dim")
+    hints.append("[1-9]", style="bold cyan")
+    hints.append(" jump  ", style="dim")
+    hints.append("[/]", style="bold cyan")
+    hints.append(" new search  ", style="dim")
+    hints.append("[q]", style="bold cyan")
+    hints.append(" quit", style="dim")
+    parts.append(hints)
+
+    return Group(*parts)
+
+
+_HISTORY_FILE = Path.home() / ".cache" / "beacon" / "search_history"
+
+
+def _setup_readline() -> None:
+    """
+    Configure Python readline with persistent per-session search history.
+
+    Uses Python's built-in readline module (backed by libedit on macOS or
+    GNU readline on Linux). History is saved to ~/.cache/beacon/search_history
+    so up-arrow recall works across sessions.
+
+    Must be called before the first input() prompt.
+    """
+    try:
+        import readline
+        _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        readline.set_history_length(500)
+        try:
+            readline.read_history_file(str(_HISTORY_FILE))
+        except (FileNotFoundError, OSError):
+            pass
+        # Ensure history is flushed on normal exit
+        import atexit
+        atexit.register(readline.write_history_file, str(_HISTORY_FILE))
+    except ImportError:
+        pass  # Windows without pyreadline — silently skip
+
+
+def _readline_input(console) -> str:
+    """
+    Show a styled search prompt and read a line using Python's input().
+
+    Using input() (not Prompt.ask / console.input) ensures readline key
+    bindings — including up/down arrow history — work correctly.
+    The styled prompt is printed via rich first; input() is then called
+    with an empty string so readline attaches to the right place.
+    """
+    # Print the visible prompt via rich (no newline)
+    console.print("  [bold cyan]❯[/bold cyan] [dim]search your codebase[/dim]",
+                  end="")
+    try:
+        # input("") keeps the cursor on the same line and activates readline
+        line = input(" ").strip()
+    except (EOFError, KeyboardInterrupt):
+        line = "q"
+    # Save to persistent history immediately
+    try:
+        import readline
+        if line and line.lower() not in ("q", "quit", "exit"):
+            readline.add_history(line)
+            readline.write_history_file(str(_HISTORY_FILE))
+    except Exception:
+        pass
+    return line
+
+
+def cmd_ask_interactive(conn, root: Path, console) -> None:
+    """Full interactive TUI: search bar → live results → key-driven expand."""
+    from rich.live import Live
+    from beacon.search.capsule import get_capsule
+    from beacon.search.query import expand_query
+    from beacon.indexer import embedder as _emb
+
+    # Silence model-loading noise — it breaks the TUI layout
+    _emb._VERBOSE = False
+    _setup_readline()
+
+    while True:
+        console.clear()
+        _header(console)
+        console.print()
+
+        query = _readline_input(console)
+        console.print()   # newline after input
+
+        if not query or query.lower() in ("q", "quit", "exit"):
+            return
+
+        # ── Run search ────────────────────────────────────────────────────────
+        with console.status(
+            f"[cyan]Searching[/cyan] [bold]{query!r}[/bold]…", spinner="dots"
+        ):
+            _, anchor_fqns = expand_query(conn, query)
+            cap = get_capsule(conn, query, max_tokens=8000, anchor_fqns=anchor_fqns)
+
+        seeds = [n for n in cap.nodes if n.role == "seed"]
+        if not seeds:
+            console.print("[yellow]  No results found.[/yellow]")
+            console.print()
+            continue  # back to prompt
+
+        # Cap at 9 so single-digit keys always map cleanly
+        seeds = seeds[:9]
+        selected = 0   # first result is shown expanded by default
+
+        def _render(sel):
+            return _render_interactive_view(query, cap, seeds, sel, conn, root)
+
+        # ── Live display + keypress loop ──────────────────────────────────────
+        with Live(_render(selected), console=console, auto_refresh=False) as live:
+            while True:
+                ch = _getch()
+
+                if ch in ('q',):
+                    return          # quit entirely
+
+                if ch in ('/', 's', '\r', '\n'):
+                    break           # back to search prompt
+
+                if ch == 'UP' or ch == 'k':
+                    selected = (selected - 1) % len(seeds)
+                    live.update(_render(selected), refresh=True)
+
+                elif ch == 'DOWN' or ch == 'j':
+                    selected = (selected + 1) % len(seeds)
+                    live.update(_render(selected), refresh=True)
+
+                elif ch.isdigit():
+                    idx = int(ch) - 1
+                    if 0 <= idx < len(seeds):
+                        selected = idx
+                        live.update(_render(selected), refresh=True)
+        # Loop → new search
+
+
 def cmd_ask(args):
     import time
     _suppress_ml_noise()
+    _suppress_tqdm()
     from rich.console import Console
     from rich.rule import Rule
     from rich.text import Text
@@ -559,7 +931,15 @@ def cmd_ask(args):
     console = Console(highlight=False)
 
     db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
+    db_path = Path(db).resolve()
+    # Root is two levels up from .beacon/index.db
+    root = db_path.parent.parent if db_path.parent.name == ".beacon" else db_path.parent
     conn = open_db(db)
+
+    # No query → interactive TUI
+    if not getattr(args, "query", None):
+        cmd_ask_interactive(conn, root, console)
+        return
 
     t0 = time.monotonic()
     with console.status(
@@ -808,7 +1188,8 @@ def main():
                    help="Force model selection prompt even if config exists")
 
     p = sub.add_parser("ask", help="Ask the codebase a natural language question")
-    p.add_argument("query")
+    p.add_argument("query", nargs="?", default=None,
+                   help="Query (omit for interactive TUI mode)")
     p.add_argument("--db")
     p.add_argument("--limit", type=int, default=5, help="Seed panels to show (default: 5)")
     p.add_argument("--max-tokens", type=int, default=8000)
