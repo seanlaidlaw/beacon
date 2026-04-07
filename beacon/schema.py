@@ -1,5 +1,5 @@
 """
-SQLite schema for pyvexp — mirrors vexp-core schema version 5.
+SQLite schema for Beacon — mirrors vexp-core schema version 5.
 """
 
 import sqlite3

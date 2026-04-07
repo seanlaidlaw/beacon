@@ -7,7 +7,7 @@ Layer 1: FTS5 BM25 keyword search
 Layer 2: Dense cosine similarity (primary) OR TF-IDF cosine (fallback)
   Dense: loads stored float32 vectors from node_embeddings_dense,
          encodes query with same model, cosine similarity in numpy.
-  TF-IDF fallback: loads pickled vectorizer from .vexp/tfidf.pkl,
+  TF-IDF fallback: loads pickled vectorizer from .beacon/tfidf.pkl,
          transforms query with corpus IDF, cosine similarity against
          stored sparse vectors. (Previously broken: now uses saved IDF.)
 
@@ -142,7 +142,7 @@ def _dense_scores(
         return {}
 
     try:
-        from pyvexp.indexer.embedder import get_encoder
+        from beacon.indexer.embedder import get_encoder
         encoder = get_encoder()
         q_vecs = encoder.encode([query])
         if q_vecs is None:
@@ -177,7 +177,7 @@ def _tfidf_scores(
     if not node_ids:
         return {}
 
-    from pyvexp.indexer.embedder import load_vectorizer
+    from beacon.indexer.embedder import load_vectorizer
     vectorizer = load_vectorizer(conn)
     if vectorizer is None:
         return {}

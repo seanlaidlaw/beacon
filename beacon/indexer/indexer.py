@@ -127,7 +127,7 @@ def check_and_reindex(
             parts.append(f"{len(changed)} changed/new")
         if deleted:
             parts.append(f"{len(deleted)} deleted")
-        print(f"[pyvexp] auto-reindex: {', '.join(parts)}", flush=True)
+        print(f"[beacon] auto-reindex: {', '.join(parts)}", flush=True)
 
     # Remove deleted files
     for rel in deleted:
@@ -186,15 +186,15 @@ def index(
     Parameters
     ----------
     root         : repository root directory
-    db_path      : explicit path to index.db (default: <root>/.vexp/index.db)
+    db_path      : explicit path to index.db (default: <root>/.beacon/index.db)
     repo_alias   : label for this repo in multi-repo setups
     skip_coupling: skip git change coupling (faster, useful for testing)
     """
-    from pyvexp.schema import open_db  # avoid circular at module level
+    from beacon.schema import open_db  # avoid circular at module level
 
     root = Path(root).resolve()
     if db_path is None:
-        db_path = root / ".vexp" / "index.db"
+        db_path = root / ".beacon" / "index.db"
 
     conn = open_db(db_path)
 

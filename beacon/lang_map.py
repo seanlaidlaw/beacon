@@ -8,7 +8,7 @@ language → file-type mappings available. We use it as ground truth for which
 extensions belong to which language, then filter down to only the languages
 we can actually parse.
 
-Cached to .vexp/languages.toml after first download.
+Cached to .beacon/languages.toml after first download.
 """
 
 import importlib
@@ -130,10 +130,10 @@ def build_lang_map(cache_dir: str | Path | None = None) -> dict[str, str]:
     whose language has an installed tree-sitter grammar.
 
     cache_dir : directory to store the downloaded languages.toml and compiled grammars
-                (default: ~/.cache/pyvexp)
+                (default: ~/.cache/beacon)
     """
     if cache_dir is None:
-        cache_dir = Path.home() / ".cache" / "pyvexp"
+        cache_dir = Path.home() / ".cache" / "beacon"
     cache_dir = Path(cache_dir)
     cache_path = cache_dir / "languages.toml"
 
@@ -141,7 +141,7 @@ def build_lang_map(cache_dir: str | Path | None = None) -> dict[str, str]:
     data = tomllib.loads(raw.decode("utf-8", errors="replace"))
 
     if cache_dir is None:
-        cache_dir = Path.home() / ".cache" / "pyvexp"
+        cache_dir = Path.home() / ".cache" / "beacon"
     cache_dir = Path(cache_dir)
 
     installed = _installed_packages(cache_dir)

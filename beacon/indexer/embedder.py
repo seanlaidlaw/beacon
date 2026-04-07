@@ -4,7 +4,7 @@ Embedder — builds both sparse TF-IDF and dense neural embeddings for indexed n
 Sparse TF-IDF (layer 1 lexical):
   - Fits a TfidfVectorizer over the full corpus at index time
   - Stores per-node sparse {term: weight} JSON in node_embeddings
-  - Persists the fitted vectorizer to .vexp/tfidf.pkl so query-time IDF is consistent
+  - Persists the fitted vectorizer to .beacon/tfidf.pkl so query-time IDF is consistent
 
 Dense neural (layer 2 semantic):
   - Uses jinaai/jina-embeddings-v2-base-code (768-dim, code+NL trained)

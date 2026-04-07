@@ -7,7 +7,7 @@ Implements the same 11 tools as vexp-core:
   search_memory, submit_lsp_edges, workspace_setup
 
 Start with:
-    python -m pyvexp.mcp --workspace /path/to/repo
+    beacon mcp --workspace /path/to/repo
 """
 
 import json
@@ -175,7 +175,7 @@ TOOLS = [
     },
     {
         "name": "workspace_setup",
-        "description": "Set up pyvexp for the current workspace.",
+        "description": "Set up beacon for the current workspace.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -222,7 +222,7 @@ class McpServer:
     def __init__(self, workspace: str | Path, db_path: str | Path | None = None):
         self.workspace = Path(workspace).resolve()
         if db_path is None:
-            db_path = self.workspace / ".vexp" / "index.db"
+            db_path = self.workspace / ".beacon" / "index.db"
         self.db_path = Path(db_path)
         self._conn = None
         self.session_id = str(uuid.uuid4())
@@ -235,7 +235,7 @@ class McpServer:
     def _conn_lazy(self):
         """Open DB connection on first use (lazy so startup is fast)."""
         if self._conn is None:
-            from pyvexp.schema import open_db
+            from beacon.schema import open_db
             self._conn = open_db(self.db_path)
             self._ensure_session()
         return self._conn
@@ -261,14 +261,14 @@ class McpServer:
         self._last_reindex_check = now
 
         try:
-            from pyvexp.indexer.indexer import check_and_reindex
+            from beacon.indexer.indexer import check_and_reindex
             conn = self._conn_lazy()
             n = check_and_reindex(conn, self.workspace, silent=True)
             if n > 0:
                 # Reset sent-FQN cache so updated symbols aren't suppressed by dedup
                 self._sent_fqns.clear()
                 import sys
-                print(f"[pyvexp] auto-reindexed {n} file(s)", file=sys.stderr, flush=True)
+                print(f"[beacon] auto-reindexed {n} file(s)", file=sys.stderr, flush=True)
         except Exception:
             pass  # never let a reindex failure break a query
 
@@ -286,9 +286,9 @@ class McpServer:
     # ── Tool handlers ──────────────────────────────────────────────────────────
 
     def handle_run_pipeline(self, params: dict) -> str:
-        from pyvexp.search.capsule import get_capsule, render_capsule
-        from pyvexp.search.graph import get_impact_graph, format_impact_tree, get_skeleton, search_logic_flow, format_flow
-        from pyvexp.search.query import expand_query
+        from beacon.search.capsule import get_capsule, render_capsule
+        from beacon.search.graph import get_impact_graph, format_impact_tree, get_skeleton, search_logic_flow, format_flow
+        from beacon.search.query import expand_query
 
         task = params["task"]
         max_tokens = int(params.get("max_tokens", 10_000))
@@ -353,8 +353,8 @@ class McpServer:
         return output
 
     def handle_get_context_capsule(self, params: dict) -> str:
-        from pyvexp.search.capsule import get_capsule, render_capsule
-        from pyvexp.search.query import expand_query
+        from beacon.search.capsule import get_capsule, render_capsule
+        from beacon.search.query import expand_query
         self._maybe_reindex()
         conn = self._conn_lazy()
         query = params["query"]
@@ -373,7 +373,7 @@ class McpServer:
         return result
 
     def handle_get_impact_graph(self, params: dict) -> str:
-        from pyvexp.search.graph import get_impact_graph, format_impact_tree, format_impact_list, format_impact_mermaid
+        from beacon.search.graph import get_impact_graph, format_impact_tree, format_impact_list, format_impact_mermaid
         conn = self._conn_lazy()
         ig = get_impact_graph(
             conn,
@@ -392,7 +392,7 @@ class McpServer:
         return result
 
     def handle_search_logic_flow(self, params: dict) -> str:
-        from pyvexp.search.graph import search_logic_flow, format_flow
+        from beacon.search.graph import search_logic_flow, format_flow
         conn = self._conn_lazy()
         paths = search_logic_flow(
             conn,
@@ -405,8 +405,8 @@ class McpServer:
         return result
 
     def handle_get_skeleton(self, params: dict) -> str:
-        from pyvexp.search.graph import get_skeleton
-        from pyvexp.indexer.scanner import LANG_MAP
+        from beacon.search.graph import get_skeleton
+        from beacon.indexer.scanner import LANG_MAP
         conn = self._conn_lazy()
         files = params["files"]
         detail = params.get("detail", "standard")
@@ -439,7 +439,7 @@ class McpServer:
                     needs_disk.append((i, orig, str(abs_p)))
 
         if needs_disk:
-            from pyvexp.indexer.symbols import extract
+            from beacon.indexer.symbols import extract
             for header_idx, orig, abs_p in needs_disk:
                 lang = LANG_MAP.get(Path(abs_p).suffix.lower())
                 if not lang:
@@ -477,7 +477,7 @@ class McpServer:
         kind_str = ", ".join(f"{r[0]}:{r[1]}" for r in kinds)
 
         return (
-            f"# pyvexp index status\n\n"
+            f"# beacon index status\n\n"
             f"- Workspace: {self.workspace}\n"
             f"- DB: {self.db_path}\n"
             f"- Schema version: {schema_ver[0] if schema_ver else 'unknown'}\n"
@@ -566,7 +566,7 @@ class McpServer:
             binds.append(f"-{int(time_days)} days")
         binds.append(max_results * 2)
 
-        from pyvexp.search.query import _fts5_query
+        from beacon.search.query import _fts5_query
         fts_query = _fts5_query(query)
         binds[0] = fts_query
         try:
@@ -668,20 +668,20 @@ class McpServer:
 
     def handle_workspace_setup(self, params: dict) -> str:
         root = Path(params.get("workspace_root") or self.workspace)
-        vexp_dir = root / ".vexp"
+        vexp_dir = root / ".beacon"
         vexp_dir.mkdir(exist_ok=True)
         gitignore = vexp_dir / ".gitignore"
         if not gitignore.exists():
             gitignore.write_text("index.db\nindex.db-shm\nindex.db-wal\n")
         return (
-            f"# pyvexp workspace setup\n\n"
+            f"# beacon workspace setup\n\n"
             f"- Workspace: {root}\n"
-            f"- Index DB: {root / '.vexp' / 'index.db'}\n"
+            f"- Index DB: {root / '.beacon' / 'index.db'}\n"
             f"- .gitignore: created\n\n"
             f"Run indexing:\n"
-            f"    python -m pyvexp.cli index {root}\n\n"
+            f"    beacon index {root}\n\n"
             f"Start MCP server:\n"
-            f"    python -m pyvexp.mcp --workspace {root}\n"
+            f"    beacon mcp --workspace {root}\n"
         )
 
     # ── Dispatch ───────────────────────────────────────────────────────────────
@@ -745,7 +745,7 @@ class McpServer:
                     "result": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "pyvexp", "version": "1.0.0"},
+                        "serverInfo": {"name": "beacon", "version": "1.0.0"},
                     },
                 })
 
@@ -775,7 +775,7 @@ class McpServer:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="pyvexp MCP stdio server")
+    parser = argparse.ArgumentParser(description="Beacon MCP stdio server")
     parser.add_argument("--workspace", default=os.getcwd(), help="Workspace root (default: cwd)")
     parser.add_argument("--db", default=None, help="Explicit path to index.db")
     args = parser.parse_args()

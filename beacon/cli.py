@@ -1,5 +1,5 @@
 """
-pyvexp CLI
+beacon CLI
 
 Commands:
     index     [<dir>]   — scan + index a codebase
@@ -25,13 +25,13 @@ def cmd_index(args):
     import blake3
     import tqdm
 
-    from pyvexp.indexer import scanner, symbols, embedder, coupling
-    from pyvexp.schema import open_db
+    from beacon.indexer import scanner, symbols, embedder, coupling
+    from beacon.schema import open_db
 
     root = Path(args.dir or os.getcwd()).resolve()
-    db_path = Path(args.db) if args.db else root / ".vexp" / "index.db"
+    db_path = Path(args.db) if args.db else root / ".beacon" / "index.db"
 
-    print(f"pyvexp index — {root}")
+    print(f"beacon index — {root}")
     print()
 
     # ── Phase 1: scan (fast) ──────────────────────────────────────────────────
@@ -193,7 +193,7 @@ def cmd_index(args):
 
 def _resolve_edges(conn, all_edges):
     import tqdm
-    from pyvexp.indexer.symbols import CallEdge
+    from beacon.indexer.symbols import CallEdge
 
     print(f"Resolving {len(all_edges)} call edges...", end=" ", flush=True)
     inserted = 0
@@ -223,7 +223,7 @@ def _finish(conn, root, args):
     e = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
     emb = conn.execute("SELECT COUNT(*) FROM node_embeddings").fetchone()[0]
     dense = conn.execute("SELECT COUNT(*) FROM node_embeddings_dense").fetchone()[0]
-    db_path = Path(args.db) if args.db else root / ".vexp" / "index.db"
+    db_path = Path(args.db) if args.db else root / ".beacon" / "index.db"
 
     # Write healthy marker — read by the Claude Code hook to know the index is ready
     healthy = db_path.parent / "healthy"
@@ -245,9 +245,9 @@ def _finish(conn, root, args):
 # ── search ────────────────────────────────────────────────────────────────────
 
 def cmd_search(args):
-    from pyvexp.schema import open_db
-    from pyvexp.search.query import search
-    db = args.db or str(Path(os.getcwd()) / ".vexp" / "index.db")
+    from beacon.schema import open_db
+    from beacon.search.query import search
+    db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
     conn = open_db(db)
     results = search(conn, args.query, limit=args.limit)
     if not results:
@@ -264,9 +264,9 @@ def cmd_search(args):
 # ── capsule ───────────────────────────────────────────────────────────────────
 
 def cmd_capsule(args):
-    from pyvexp.schema import open_db
-    from pyvexp.search.capsule import get_capsule, render_capsule
-    db = args.db or str(Path(os.getcwd()) / ".vexp" / "index.db")
+    from beacon.schema import open_db
+    from beacon.search.capsule import get_capsule, render_capsule
+    db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
     conn = open_db(db)
     cap = get_capsule(conn, args.query, max_tokens=args.max_tokens)
     print(render_capsule(cap))
@@ -275,7 +275,7 @@ def cmd_capsule(args):
 # ── mcp ───────────────────────────────────────────────────────────────────────
 
 def cmd_mcp(args):
-    from pyvexp.mcp import McpServer
+    from beacon.mcp import McpServer
     workspace = Path(args.workspace or os.getcwd()).resolve()
     db = Path(args.db) if args.db else None
     McpServer(workspace=workspace, db_path=db).run()
@@ -285,16 +285,16 @@ def cmd_mcp(args):
 
 GUARD_SCRIPT = """\
 #!/bin/bash
-# pyvexp-guard: redirect Grep/Glob/Read to pyvexp MCP tools when index is ready.
-# Checks for .vexp/index.db and .vexp/healthy marker written by `pyvexp index`.
-VEXP_DIR="${CLAUDE_PROJECT_DIR:-.}/.vexp"
-HEALTHY="$VEXP_DIR/healthy"
-DB="$VEXP_DIR/index.db"
+# beacon-guard: redirect Grep/Glob/Read to Beacon MCP tools when index is ready.
+# Checks for .beacon/index.db and .beacon/healthy marker written by `beacon index`.
+BEACON_DIR="${CLAUDE_PROJECT_DIR:-.}/.beacon"
+HEALTHY="$BEACON_DIR/healthy"
+DB="$BEACON_DIR/index.db"
 
 if [ -f "$DB" ] && [ -f "$HEALTHY" ]; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"pyvexp index is ready. Use run_pipeline or get_context_capsule instead of Grep/Glob/Read — it searches semantically and saves tokens."}}'
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"beacon index is ready. Use run_pipeline or get_context_capsule instead of Grep/Glob/Read — it searches semantically and saves tokens."}}'
 else
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"pyvexp index not ready, allowing direct search fallback."}}'
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"beacon index not ready, allowing direct search fallback."}}'
 fi
 exit 0
 """
@@ -306,7 +306,7 @@ HOOK_CONFIG = {
             "hooks": [
                 {
                     "type": "command",
-                    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pyvexp-guard.sh",
+                    "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/beacon-guard.sh",
                     "timeout": 3000,
                 }
             ],
@@ -318,13 +318,13 @@ HOOK_CONFIG = {
 def cmd_setup(args):
     workspace = Path(args.workspace or os.getcwd()).resolve()
     python = sys.executable
-    pyvexp_dir = str(Path(__file__).resolve().parent.parent)
-    db_path = workspace / ".vexp" / "index.db"
+    beacon_dir = str(Path(__file__).resolve().parent.parent)
+    db_path = workspace / ".beacon" / "index.db"
 
     # ── 1. Write guard script ─────────────────────────────────────────────────
     hooks_dir = workspace / ".claude" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    guard = hooks_dir / "pyvexp-guard.sh"
+    guard = hooks_dir / "beacon-guard.sh"
     guard.write_text(GUARD_SCRIPT)
     guard.chmod(0o755)
     print(f"  hook script → {guard}")
@@ -336,9 +336,9 @@ def cmd_setup(args):
 
     hooks = settings.setdefault("hooks", {})
     existing = hooks.get("PreToolUse", [])
-    # Remove any prior pyvexp-guard entry before re-adding
+    # Remove any prior beacon-guard entry before re-adding
     existing = [e for e in existing
-                if not any("pyvexp-guard" in str(h.get("command", ""))
+                if not any("beacon-guard" in str(h.get("command", ""))
                            for h in e.get("hooks", []))]
     existing.extend(HOOK_CONFIG["PreToolUse"])
     hooks["PreToolUse"] = existing
@@ -353,32 +353,32 @@ def cmd_setup(args):
     user_cfg_path = Path.home() / ".claude.json"
     user_cfg = json.loads(user_cfg_path.read_text()) if user_cfg_path.exists() else {}
 
-    user_cfg.setdefault("mcpServers", {})["pyvexp"] = {
+    user_cfg.setdefault("mcpServers", {})["beacon"] = {
         "command": python,
-        "args": ["-m", "pyvexp.mcp",
+        "args": ["-m", "beacon.mcp",
                  "--workspace", str(workspace),
                  "--db", str(db_path)],
-        "env": {"PYTHONPATH": pyvexp_dir},
+        "env": {"PYTHONPATH": beacon_dir},
     }
 
     user_cfg_path.write_text(json.dumps(user_cfg, indent=2))
     print(f"  MCP server  → {user_cfg_path}  (user scope)")
 
-    # ── 4. Add .vexp/ to .gitignore ───────────────────────────────────────────
+    # ── 4. Add .beacon/ to .gitignore ───────────────────────────────────────────
     gitignore = workspace / ".gitignore"
-    entry = ".vexp/\n"
+    entry = ".beacon/\n"
     if gitignore.exists():
         content = gitignore.read_text()
-        if ".vexp" not in content:
+        if ".beacon" not in content:
             gitignore.write_text(content.rstrip("\n") + "\n" + entry)
-            print(f"  .gitignore  → added .vexp/")
+            print(f"  .gitignore  → added .beacon/")
     else:
         gitignore.write_text(entry)
-        print(f"  .gitignore  → created with .vexp/")
+        print(f"  .gitignore  → created with .beacon/")
 
     print()
     print("Setup complete. Now run:")
-    print(f"  python -m pyvexp.cli index {workspace} --no-coupling")
+    print(f"  beacon index {workspace} --no-coupling")
     print("Then restart Claude Code to activate the MCP and hook.")
 
 
@@ -387,21 +387,21 @@ def cmd_setup(args):
 def cmd_show_config(args):
     workspace = str(Path(args.workspace or os.getcwd()).resolve())
     python = sys.executable
-    pyvexp_dir = str(Path(__file__).resolve().parent.parent)
-    db = str(Path(workspace) / ".vexp" / "index.db")
+    beacon_dir = str(Path(__file__).resolve().parent.parent)
+    db = str(Path(workspace) / ".beacon" / "index.db")
 
     config = {
         "command": python,
-        "args": ["-m", "pyvexp.mcp", "--workspace", workspace, "--db", db],
-        "env": {"PYTHONPATH": pyvexp_dir},
+        "args": ["-m", "beacon.mcp", "--workspace", workspace, "--db", db],
+        "env": {"PYTHONPATH": beacon_dir},
     }
-    print(json.dumps({"mcpServers": {"pyvexp": config}}, indent=2))
+    print(json.dumps({"mcpServers": {"beacon": config}}, indent=2))
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(prog="python -m pyvexp.cli")
+    parser = argparse.ArgumentParser(prog="beacon")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("index", help="Index a directory")

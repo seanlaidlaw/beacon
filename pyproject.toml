@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beacon-code"
+version = "1.0.0"
+description = "Beacon — semantic code intelligence engine for AI coding agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["code-intelligence", "mcp", "ai", "embeddings", "tree-sitter", "semantic-search"]
+
+dependencies = [
+    "blake3",
+    "gitpython",
+    "numpy",
+    "scikit-learn",
+    "tqdm",
+    "tree-sitter>=0.25",
+    "tree-sitter-python",
+    "tree-sitter-javascript",
+    "tree-sitter-typescript",
+    "tree-sitter-go",
+    "tree-sitter-rust",
+    "tree-sitter-java",
+    "tree-sitter-c",
+    "tree-sitter-cpp",
+    "tree-sitter-bash",
+    "tree-sitter-lua",
+    "tree-sitter-swift",
+    "tree-sitter-markdown",
+]
+
+[project.optional-dependencies]
+# Dense neural embeddings — large, already present on most HPC/GPU systems
+dense = [
+    "transformers>=4.30",
+    "torch",
+]
+# Everything
+all = ["beacon-code[dense]"]
+
+[project.scripts]
+beacon = "beacon.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beacon*"]
+
+[tool.setuptools.package-data]
+beacon = ["py.typed"]

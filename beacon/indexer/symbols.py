@@ -35,7 +35,7 @@ def _r_language() -> Language | None:
     """Load the R grammar compiled from source, or return None if unavailable."""
     import ctypes
     from pathlib import Path
-    r_so = Path.home() / ".cache" / "pyvexp" / "grammars" / "r.so"
+    r_so = Path.home() / ".cache" / "beacon" / "grammars" / "r.so"
     if not r_so.exists():
         return None
     try:

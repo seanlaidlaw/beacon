@@ -3,7 +3,7 @@ File discovery with layered ignore support.
 
 Priority order (first match wins):
   1. Hardcoded always-exclude dirs (node_modules, .git, __pycache__, etc.)
-  2. .vexp_ignore  (pyvexp-specific overrides)
+  2. .beaconignore  (beacon-specific overrides)
   3. .claudeignore (Claude Code ignore file)
   4. .gitignore    (standard git ignore, per-directory)
 
@@ -27,8 +27,8 @@ ALWAYS_EXCLUDE_DIRS = {
     # Package managers
     "node_modules", ".npm", ".yarn", ".pnpm-store",
     ".gradle", ".m2",
-    # pyvexp own index
-    ".vexp",
+    # beacon own index
+    ".beacon",
     # Conda/system environment dirs — not source code
     "conda-meta",           # conda package metadata
     "include",              # C/C++ system headers
@@ -67,7 +67,7 @@ _LANG_MAP_CACHE: dict[str, str] | None = None
 def _get_lang_map() -> dict[str, str]:
     global _LANG_MAP_CACHE
     if _LANG_MAP_CACHE is None:
-        from pyvexp.lang_map import get_lang_map
+        from beacon.lang_map import get_lang_map
         _LANG_MAP_CACHE = get_lang_map()
     return _LANG_MAP_CACHE
 
@@ -139,7 +139,7 @@ class Scanner:
         LANG_MAP = _get_lang_map()
         # Root-level ignore patterns loaded once
         self._root_patterns: list[str] = (
-            _load_patterns(self.root / ".vexp_ignore") +
+            _load_patterns(self.root / ".beaconignore") +
             _load_patterns(self.root / ".claudeignore") +
             _load_patterns(self.root / ".gitignore")
         )
@@ -155,8 +155,9 @@ class Scanner:
     def _is_ignored(self, path: Path) -> bool:
         rel = str(path.relative_to(self.root))
 
-        # Hardcoded dir exclusions — check every path component
-        for part in path.parts:
+        # Hardcoded dir exclusions — check only path components relative to root
+        # (not ancestors of root, which may legitimately be named node_modules etc.)
+        for part in Path(rel).parts:
             if part in ALWAYS_EXCLUDE_DIRS:
                 return True
 

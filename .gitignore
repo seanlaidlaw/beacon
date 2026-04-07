@@ -1,4 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
-.vexp/
+.beacon/
+*.egg-info/
+dist/
+build/
