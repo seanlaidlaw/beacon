@@ -135,10 +135,7 @@ def load_vectorizer(conn: sqlite3.Connection) -> TfidfVectorizer | None:
 
 # ── Dense neural encoder ──────────────────────────────────────────────────────
 
-# Primary model — code + natural-language trained, 768-dim
-_PRIMARY_MODEL = "jinaai/jina-embeddings-v2-base-code"
-# Fallback — also good for code, available on HuggingFace
-_FALLBACK_MODEL = "microsoft/unixcoder-base"
+_MODEL = "jinaai/jina-embeddings-v2-base-code"
 
 _BATCH_SIZE = 64
 
@@ -211,9 +208,7 @@ _encoder: SentenceEncoder | None = None
 def get_encoder() -> SentenceEncoder:
     global _encoder
     if _encoder is None:
-        _encoder = SentenceEncoder(_PRIMARY_MODEL)
-        if not _encoder._load():
-            _encoder = SentenceEncoder(_FALLBACK_MODEL)
+        _encoder = SentenceEncoder(_MODEL)
     return _encoder
 
 
