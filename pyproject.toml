@@ -17,6 +17,8 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "tqdm",
+    "transformers>=4.30",
+    "torch",
     "tree-sitter>=0.25",
     "tree-sitter-python",
     "tree-sitter-javascript",
@@ -31,15 +33,6 @@ dependencies = [
     "tree-sitter-swift",
     "tree-sitter-markdown",
 ]
-
-[project.optional-dependencies]
-# Dense neural embeddings — large, already present on most HPC/GPU systems
-dense = [
-    "transformers>=4.30",
-    "torch",
-]
-# Everything
-all = ["beacon-code[dense]"]
 
 [project.scripts]
 beacon = "beacon.cli:main"
