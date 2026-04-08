@@ -92,6 +92,7 @@ def cmd_index(args):
     from rich.progress import (
         Progress, SpinnerColumn, BarColumn, TextColumn,
         MofNCompleteColumn, TimeRemainingColumn, TaskProgressColumn,
+        DownloadColumn, TransferSpeedColumn,
     )
     from rich.table import Table
     from rich.text import Text
@@ -288,15 +289,70 @@ def cmd_index(args):
         console.print("  [green]✓[/green] TF-IDF embeddings")
 
         model_short = current_model.split("/")[-1]
-        with console.status(
-            f"[cyan]Building dense embeddings ({model_short})…[/cyan]", spinner="dots"
-        ):
-            embedder.build_dense_incremental(conn, changed_node_ids)
-        dense_count = conn.execute("SELECT COUNT(*) FROM node_embeddings_dense").fetchone()[0]
-        console.print(
-            f"  [green]✓[/green] Dense embeddings  "
-            f"[dim]model={model_short}  n={dense_count:,}[/dim]"
-        )
+
+        # ── Step 1: ensure model is on disk (may need to download) ───────────
+        enc = embedder.get_encoder()
+        if not embedder.is_model_cached(current_model):
+            console.print(
+                f"  [yellow]↓[/yellow]  Downloading [cyan]{model_short}[/cyan]  "
+                f"[dim](first run)[/dim]"
+            )
+            with Progress(
+                TextColumn("  [dim]{task.description}[/dim]"),
+                BarColumn(bar_width=28, style="cyan", complete_style="green"),
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeRemainingColumn(),
+                console=console,
+                transient=True,
+            ) as dl_progress:
+                dl_task = dl_progress.add_task(model_short, total=None)
+                _patch_tqdm_with(_make_rich_tqdm_class(dl_progress, dl_task))
+                try:
+                    load_ok = enc._load()
+                finally:
+                    _suppress_tqdm()  # re-silence for the rest of indexing
+
+            if not load_ok:
+                console.print(
+                    f"  [red]✗[/red]  Model download failed"
+                    + (f"  [dim]{enc.error}[/dim]" if enc.error else "")
+                )
+                console.print()
+            else:
+                console.print(f"  [green]✓[/green] Model downloaded")
+        else:
+            # Already cached — load from disk (fast, but surface any error)
+            with console.status(
+                f"[cyan]Loading {model_short}…[/cyan]", spinner="dots"
+            ):
+                load_ok = enc._load()
+            if not load_ok:
+                console.print(
+                    f"  [red]✗[/red]  Model failed to load"
+                    + (f"  [dim]{enc.error}[/dim]" if enc.error else "")
+                )
+                console.print()
+
+        # ── Step 2: build embeddings (skip if load failed) ───────────────────
+        if load_ok:
+            with console.status(
+                f"[cyan]Building dense embeddings ({model_short})…[/cyan]", spinner="dots"
+            ):
+                n_stored, embed_err = embedder.build_dense_incremental(conn, changed_node_ids)
+
+            if embed_err:
+                console.print(
+                    f"  [red]✗[/red]  Dense embeddings failed  [dim]{embed_err}[/dim]"
+                )
+            else:
+                dense_count = conn.execute(
+                    "SELECT COUNT(*) FROM node_embeddings_dense"
+                ).fetchone()[0]
+                console.print(
+                    f"  [green]✓[/green] Dense embeddings  "
+                    f"[dim]model={model_short}  n={dense_count:,}[/dim]"
+                )
         console.print()
 
     # ── Phase 6: Git change coupling ─────────────────────────────────────────
@@ -421,7 +477,6 @@ def _suppress_tqdm() -> None:
     """Replace tqdm progress bars with a no-op so they don't corrupt rich output."""
     try:
         import tqdm
-        # Monkey-patch tqdm to be silent
         class _SilentTqdm:
             def __init__(self, *a, **kw): pass
             def __iter__(self): return iter([])
@@ -431,9 +486,53 @@ def _suppress_tqdm() -> None:
             def __enter__(self): return self
             def __exit__(self, *a): pass
         tqdm.tqdm = _SilentTqdm
-        # Also patch tqdm.auto which sentence-transformers uses
         import tqdm.auto
         tqdm.auto.tqdm = _SilentTqdm
+    except Exception:
+        pass
+
+
+def _make_rich_tqdm_class(progress_bar, task_id):
+    """Return a tqdm-compatible class that forwards download progress to a Rich task.
+
+    Each tqdm instantiation resets the task (HF downloads one file per tqdm),
+    forwarding the filename via ``desc`` and byte count via ``total`` / ``update``.
+    """
+    class _RichTqdm:
+        def __init__(self, iterable=None, *, desc=None, total=None, **kwargs):
+            self._iterable = iterable
+            # Strip path separators — desc is usually the full cache path
+            short = Path(desc).name if desc and ('/' in desc or '\\' in desc) else (desc or "")
+            progress_bar.update(task_id, description=short, completed=0, total=total)
+
+        def update(self, n=1):
+            progress_bar.update(task_id, advance=n)
+
+        def __enter__(self): return self
+        def __exit__(self, *args): self.close()
+        def __iter__(self):
+            for item in (self._iterable or []):
+                yield item
+                self.update(1)
+        def close(self): pass
+        def set_postfix(self, *args, **kwargs): pass
+        def set_postfix_str(self, *args, **kwargs): pass
+        def set_description(self, desc=None, **kwargs):
+            if desc:
+                progress_bar.update(task_id, description=str(desc))
+        @classmethod
+        def write(cls, *args, **kwargs): pass
+
+    return _RichTqdm
+
+
+def _patch_tqdm_with(cls) -> None:
+    """Install ``cls`` as the active tqdm implementation everywhere HF Hub looks."""
+    try:
+        import tqdm
+        tqdm.tqdm = cls
+        import tqdm.auto
+        tqdm.auto.tqdm = cls
     except Exception:
         pass
 
@@ -855,8 +954,6 @@ def cmd_ask_interactive(conn, root: Path, console) -> None:
     from beacon.search.query import expand_query
     from beacon.indexer import embedder as _emb
 
-    # Silence model-loading noise — it breaks the TUI layout
-    _emb._VERBOSE = False
     _setup_readline()
 
     while True:

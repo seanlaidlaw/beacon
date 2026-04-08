@@ -147,6 +147,20 @@ def _current_model() -> str:
         return "jinaai/jina-embeddings-v2-base-code"
 
 
+def is_model_cached(model_name: str) -> bool:
+    """Return True only if the complete model snapshot is in the local HF cache.
+
+    Uses local_files_only=True so no network request is made — any missing file
+    raises an exception, which we treat as not-cached.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+        snapshot_download(repo_id=model_name, local_files_only=True)
+        return True
+    except Exception:
+        return False
+
+
 class SentenceEncoder:
     """
     Wraps jinaai/jina-embeddings-v2-base-code via sentence-transformers.
@@ -155,13 +169,14 @@ class SentenceEncoder:
     - trust_remote_code warnings (sentence-transformers handles Jina natively)
     - Internal transformers API breakage (find_pruneable_heads_and_indices etc.)
 
-    Loaded lazily; gracefully returns None if unavailable.
+    Loaded lazily; errors stored in self.error rather than silently swallowed.
     """
 
     def __init__(self, model_name: str):
         self.model_name = model_name
         self._model = None
         self._failed = False
+        self.error: str | None = None  # Last load/encode error, always set on failure
 
     def _load(self) -> bool:
         if self._failed:
@@ -169,17 +184,16 @@ class SentenceEncoder:
         if self._model is not None:
             return True
         try:
-            import sys
             from sentence_transformers import SentenceTransformer
-            if _VERBOSE:
-                print(f"Loading {self.model_name}...", end=" ", flush=True, file=sys.stderr)
-            self._model = SentenceTransformer(self.model_name)
-            if _VERBOSE:
-                print("done", file=sys.stderr)
+            self._model = SentenceTransformer(
+                self.model_name,
+                use_auth_token=False,
+                model_kwargs={"attn_implementation": "eager"},
+            )
+            self.error = None
             return True
         except Exception as e:
-            if _VERBOSE:
-                print(f"failed ({e})", file=sys.stderr)
+            self.error = str(e)
             self._failed = True
             return False
 
@@ -196,12 +210,9 @@ class SentenceEncoder:
             )
             return vecs.astype(np.float32)
         except Exception as e:
-            print(f"Encoding error: {e}")
+            self.error = str(e)
             return None
 
-
-# Set to False to suppress all loading output (used by interactive CLI mode)
-_VERBOSE: bool = True
 
 # Module-level singleton — reset when model changes
 _encoder: SentenceEncoder | None = None
@@ -239,23 +250,29 @@ def build_dense(conn: sqlite3.Connection) -> None:
     print(f"Dense embeddings: {len(batch)} vectors stored (model={encoder.model_name}, dim={vecs.shape[1]})")
 
 
-def build_dense_incremental(conn: sqlite3.Connection, node_ids: list[int]) -> None:
-    """Update dense embeddings for a specific set of nodes only."""
+def build_dense_incremental(
+    conn: sqlite3.Connection,
+    node_ids: list[int],
+) -> tuple[int, str | None]:
+    """Update dense embeddings for a specific set of nodes only.
+
+    Returns (n_stored, error_message).  error_message is None on success.
+    """
     if not node_ids:
-        return
+        return 0, None
     ph = ",".join("?" * len(node_ids))
     rows = conn.execute(
         f"SELECT id, name, fqn, signature, docstring FROM nodes WHERE id IN ({ph})",
         node_ids,
     ).fetchall()
     if not rows:
-        return
+        return 0, None
 
     encoder = get_encoder()
     texts = [_node_text(r) for r in rows]
     vecs = encoder.encode(texts)
     if vecs is None:
-        return
+        return 0, encoder.error or "model unavailable"
 
     now = datetime.now(timezone.utc).isoformat()
     batch = [(r["id"], vecs[i].tobytes(), encoder.model_name, now) for i, r in enumerate(rows)]
@@ -265,3 +282,4 @@ def build_dense_incremental(conn: sqlite3.Connection, node_ids: list[int]) -> No
         batch,
     )
     conn.commit()
+    return len(batch), None
