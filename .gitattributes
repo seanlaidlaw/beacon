@@ -1,0 +1,4 @@
+public/generated/beacon_ask.svg filter=lfs diff=lfs merge=lfs -text
+public/generated/beacon_index.svg filter=lfs diff=lfs merge=lfs -text
+public/generated/beacon_search.svg filter=lfs diff=lfs merge=lfs -text
+public/generated/beacon_setup.svg filter=lfs diff=lfs merge=lfs -text

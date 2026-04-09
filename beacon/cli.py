@@ -116,7 +116,7 @@ def cmd_index(args):
     console.print()
 
     # ── Phase 1: Scan ─────────────────────────────────────────────────────────
-    with console.status("[cyan]Scanning files…[/cyan]", spinner="dots"):
+    with _status(console, "[cyan]Scanning files…[/cyan]"):
         sc = scanner.Scanner(root)
         all_files = sc.collect()
 
@@ -271,9 +271,7 @@ def cmd_index(args):
 
     # ── Phase 4: Resolve call edges ───────────────────────────────────────────
     if all_edges:
-        with console.status(
-            f"[cyan]Resolving {len(all_edges):,} call edges…[/cyan]", spinner="dots"
-        ):
+        with _status(console, f"[cyan]Resolving {len(all_edges):,} call edges…[/cyan]"):
             inserted = _resolve_edges_silent(conn, all_edges)
         edge_total = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
         console.print(
@@ -284,7 +282,7 @@ def cmd_index(args):
 
     # ── Phase 5: TF-IDF + dense embeddings ───────────────────────────────────
     if changed_node_ids:
-        with console.status("[cyan]Building TF-IDF embeddings…[/cyan]", spinner="dots"):
+        with _status(console, "[cyan]Building TF-IDF embeddings…[/cyan]"):
             embedder.build_incremental(conn, changed_node_ids)
         console.print("  [green]✓[/green] TF-IDF embeddings")
 
@@ -323,9 +321,7 @@ def cmd_index(args):
                 console.print(f"  [green]✓[/green] Model downloaded")
         else:
             # Already cached — load from disk (fast, but surface any error)
-            with console.status(
-                f"[cyan]Loading {model_short}…[/cyan]", spinner="dots"
-            ):
+            with _status(console, f"[cyan]Loading {model_short}…[/cyan]"):
                 load_ok = enc._load()
             if not load_ok:
                 console.print(
@@ -336,9 +332,7 @@ def cmd_index(args):
 
         # ── Step 2: build embeddings (skip if load failed) ───────────────────
         if load_ok:
-            with console.status(
-                f"[cyan]Building dense embeddings ({model_short})…[/cyan]", spinner="dots"
-            ):
+            with _status(console, f"[cyan]Building dense embeddings ({model_short})…[/cyan]"):
                 n_stored, embed_err = embedder.build_dense_incremental(conn, changed_node_ids)
 
             if embed_err:
@@ -357,7 +351,7 @@ def cmd_index(args):
 
     # ── Phase 6: Git change coupling ─────────────────────────────────────────
     if not args.no_coupling:
-        with console.status("[cyan]Computing git change coupling…[/cyan]", spinner="dots"):
+        with _status(console, "[cyan]Computing git change coupling…[/cyan]"):
             # Suppress coupling's own print() output
             import io, contextlib
             buf = io.StringIO()
@@ -371,7 +365,7 @@ def cmd_index(args):
         console.print()
 
     # ── Phase 7: Rebuild FTS5 ─────────────────────────────────────────────────
-    with console.status("[cyan]Rebuilding FTS5 index…[/cyan]", spinner="dots"):
+    with _status(console, "[cyan]Rebuilding FTS5 index…[/cyan]"):
         conn.execute("INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')")
         conn.execute("INSERT INTO observations_fts(observations_fts) VALUES('rebuild')")
         conn.commit()
@@ -473,6 +467,24 @@ def _lexer(file_path: str) -> str:
     return _EXT_LEXER.get(Path(file_path).suffix.lower(), "text")
 
 
+def _status(console, msg: str, spinner: str = "dots"):
+    """Drop-in for ``console.status()`` that works with terminal recorders.
+
+    Rich's Status widget clears its spinner line using cursor-up + erase-to-EOL
+    (``\\x1b[1A\\r\\x1b[K``).  Tools like termframe don't handle those sequences
+    correctly, leaving ghost spinner text in the captured SVG.
+
+    Set ``BEACON_NO_SPINNERS=1`` to replace every spinner with a plain static
+    print so recordings render cleanly — normal terminal use is unaffected.
+    """
+    import contextlib, os as _os, re as _re
+    if _os.environ.get("BEACON_NO_SPINNERS"):
+        plain = _re.sub(r'\[[^\]]*\]', '', msg).strip()
+        console.print(f"  [dim]·[/dim] {plain}")
+        return contextlib.nullcontext()
+    return console.status(msg, spinner=spinner)
+
+
 def _suppress_tqdm() -> None:
     """Replace tqdm progress bars with a no-op so they don't corrupt rich output."""
     try:
@@ -546,6 +558,8 @@ def _suppress_ml_noise() -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ["TRANSFORMERS_VERBOSITY"] = "error"
     os.environ["SENTENCE_TRANSFORMERS_LOGLEVEL"] = "ERROR"
+    os.environ["BEACON_QUIET"] = "1"
+    os.environ.setdefault("TRANSFORMERS_ATTN_IMPLEMENTATION", "eager")
     # Suppress Python warnings from these libraries
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", category=UserWarning, module="transformers")

@@ -30,26 +30,41 @@ beacon ask
 ```
 
 
-## Commands
+## Screenshots
 
-- `beacon setup` - Install project‑local hook and generate MCP configuration
-- `beacon index` - Scan and index a codebase
-- `beacon ask` - Interactive TUI for exploring code
-- `beacon search <query>` - Hybrid semantic + keyword search
+### `beacon setup`
+`beacon setup` - Install project‑local hook and generate MCP configuration
+
+![beacon setup](public/generated/beacon_setup.svg)
+
+
+### `beacon index`
+
+`beacon index` - Scan and index a codebase
+
+![beacon index](public/generated/beacon_index.svg)
+
+### `beacon ask`
+
+`beacon ask` - Interactive TUI for exploring code
+
+![beacon ask](public/generated/beacon_ask.svg)
+
+### `beacon search`
+
+`beacon search <query>` - Hybrid semantic + keyword search
+
+![beacon search](public/generated/beacon_search.svg)
+
+
+## Other Commands
+
 - `beacon capsule <query>` - Generate a context capsule for AI agents
+
 - `beacon mcp` - Start the MCP server for integration with AI assistants
 
-## MCP Integration
-
 Beacon provides a Model Context Protocol server that lets AI assistants like Claude Code search your codebase, retrieve context capsules, and understand code relationships—all in real time.
+This command is run automatically when you start Claude Code, after running
+`beacon setup`.
 
-## Development
 
-```bash
-# Clone repository
-git clone https://github.com/yourusername/beacon-code
-cd beacon-code
-
-# Install in development mode
-pip install -e .
-```
