@@ -205,10 +205,14 @@ def check_recall(beacon_output: str, expected_hint: str) -> bool:
 
 
 def check_baseline_recall(files_read: list[dict], expected_hint: str) -> bool:
-    """Did the baseline land on the right file?"""
-    hint_lower = expected_hint.lower()
+    """Did the baseline land on the right file?
+
+    Uses the filename stem (e.g. 'csrf' from 'csrf.py') as the discriminator
+    to avoid false positives from shared path components like 'django'.
+    """
+    stem = Path(expected_hint.split(" ")[0]).stem.lower()  # e.g. "csrf", "executor"
     for f in files_read:
-        if any(part in f["file"].lower() for part in hint_lower.split("/")):
+        if stem in f["file"].lower():
             return True
     return False
 

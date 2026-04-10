@@ -42,3 +42,9 @@ include = ["beacon*"]
 
 [tool.setuptools.package-data]
 beacon = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: tests that download or load large ML models (skip with -m 'not slow')",
+]
