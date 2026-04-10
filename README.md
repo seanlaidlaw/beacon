@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/seanlaidlaw/beacon/graph/badge.svg?token=0OKFV68XCX)](https://codecov.io/gh/seanlaidlaw/beacon)
+
 # Beacon — Semantic Code Intelligence Engine
 
 Beacon indexes your codebase with semantic understanding, enabling powerful search, context capsules, and MCP integration for AI assistants.
