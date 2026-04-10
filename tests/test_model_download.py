@@ -1,80 +1,68 @@
-#!/usr/bin/env python3
 """
-Unit test for model download without HF_TOKEN.
-Verifies that beacon can download embedding models without authentication.
+Slow integration tests — verify embedding models load and encode without HF_TOKEN.
+
+Run only when explicitly requested:
+    pytest -m slow tests/test_model_download.py -v
+
+Skipped in CI (no model downloads there).
 """
 
 import os
-import sys
-import unittest
-from unittest.mock import patch
-
 import pytest
-
-from beacon.indexer.embedder import get_encoder, SentenceEncoder
+import beacon.indexer.embedder as embedder_mod
+from beacon.indexer.embedder import SentenceEncoder
 
 
 @pytest.mark.slow
-class TestModelDownload(unittest.TestCase):
-    """Test model download without HF_TOKEN (skipped in CI — requires large model download)."""
+class TestModelDownload:
+    """Model download tests — require network access and disk space."""
 
-    def setUp(self):
-        """Clear HF_TOKEN from environment."""
-        self.original_token = os.environ.get('HF_TOKEN')
-        if 'HF_TOKEN' in os.environ:
-            del os.environ['HF_TOKEN']
-        # Also set other env vars to suppress logging
-        os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
-        os.environ['HF_HUB_VERBOSITY'] = 'error'
-        os.environ['PYTHONWARNINGS'] = 'ignore'
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        os.environ['LOGURU_LEVEL'] = 'ERROR'
-        os.environ['BEACON_QUIET'] = '1'
-        os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
-        os.environ['DISABLE_TQDM'] = '1'
-        os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
-        os.environ['HF_HUB_DISABLE_TQDM'] = '1'
+    def setup_method(self):
+        """Clear HF_TOKEN and reset the global encoder singleton."""
+        self._original_token = os.environ.pop("HF_TOKEN", None)
+        os.environ.update({
+            "TRANSFORMERS_VERBOSITY": "error",
+            "HF_HUB_VERBOSITY": "error",
+            "PYTHONWARNINGS": "ignore",
+            "TF_CPP_MIN_LOG_LEVEL": "3",
+            "LOGURU_LEVEL": "ERROR",
+            "BEACON_QUIET": "1",
+            "HF_HUB_DISABLE_PROGRESS_BARS": "1",
+            "DISABLE_TQDM": "1",
+            "TRANSFORMERS_NO_ADVISORY_WARNINGS": "1",
+            "HF_HUB_DISABLE_TQDM": "1",
+        })
+        # Reset singleton so each test starts with a fresh encoder
+        embedder_mod._encoder = None
 
-    def tearDown(self):
-        """Restore original HF_TOKEN."""
-        if self.original_token is not None:
-            os.environ['HF_TOKEN'] = self.original_token
-        elif 'HF_TOKEN' in os.environ:
-            del os.environ['HF_TOKEN']
+    def teardown_method(self):
+        """Restore original HF_TOKEN and reset encoder singleton."""
+        if self._original_token is not None:
+            os.environ["HF_TOKEN"] = self._original_token
+        else:
+            os.environ.pop("HF_TOKEN", None)
+        embedder_mod._encoder = None
 
     def test_default_model_loads_without_token(self):
-        """Test that default embedding model loads without HF_TOKEN."""
-        try:
-            encoder = get_encoder()
-            # The encoder loads lazily, trigger load
-            self.assertIsInstance(encoder, SentenceEncoder)
-            # Try encoding a small text to ensure model works
-            test_texts = ["def hello(): pass", "class Test:\n    pass"]
-            # This will trigger actual model load
-            embeddings = encoder.encode(test_texts)
-            # If model fails to load, encode returns None
-            self.assertIsNotNone(embeddings, "Model failed to encode texts")
-            self.assertEqual(embeddings.shape[0], len(test_texts))
-            print(f"Model loaded successfully, embedding dimension: {embeddings.shape[1]}")
-        except Exception as e:
-            self.fail(f"Model loading failed with error: {e}")
+        """Default embedding model (jina-embeddings-v2-base-code) loads and encodes."""
+        encoder = embedder_mod.get_encoder()
+        assert isinstance(encoder, SentenceEncoder)
+
+        test_texts = ["def hello(): pass", "class Test:\n    pass"]
+        embeddings = encoder.encode(test_texts)
+        assert embeddings is not None, (
+            f"Model failed to encode texts. Encoder error: {encoder.error!r}"
+        )
+        assert embeddings.shape[0] == len(test_texts)
+        assert embeddings.shape[1] > 0
 
     def test_large_model_loads_without_token(self):
-        """Test that jina-code-embeddings-1.5b loads without HF_TOKEN."""
-        # Temporarily override config to use large model
-        with patch('beacon.indexer.embedder._current_model') as mock_current:
-            mock_current.return_value = 'jinaai/jina-code-embeddings-1.5b'
-            try:
-                encoder = get_encoder()
-                self.assertIsInstance(encoder, SentenceEncoder)
-                # Trigger load
-                test_texts = ["def test(): return 1"]
-                embeddings = encoder.encode(test_texts)
-                self.assertIsNotNone(embeddings, "Large model failed to encode texts")
-                print(f"Large model loaded successfully, embedding dimension: {embeddings.shape[1]}")
-            except Exception as e:
-                self.fail(f"Large model loading failed with error: {e}")
-
-
-if __name__ == '__main__':
-    unittest.main()
+        """jina-code-embeddings-1.5b loads and encodes without HF_TOKEN."""
+        encoder = SentenceEncoder("jinaai/jina-code-embeddings-1.5b")
+        test_texts = ["def test(): return 1"]
+        embeddings = encoder.encode(test_texts)
+        assert embeddings is not None, (
+            f"Large model failed to encode texts. Encoder error: {encoder.error!r}"
+        )
+        assert embeddings.shape[0] == len(test_texts)
+        assert embeddings.shape[1] > 0

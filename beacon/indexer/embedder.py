@@ -198,7 +198,7 @@ class SentenceEncoder:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(
                 self.model_name,
-                use_auth_token=False,
+                token=False,
                 model_kwargs={"attn_implementation": "eager"},
             )
             self.error = None
