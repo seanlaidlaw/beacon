@@ -11,6 +11,32 @@ Beacon indexes your codebase with semantic understanding, enabling powerful sear
 - **Multi‑Language Support**: Python, JavaScript/TypeScript, Go, Rust, Java, C/C++, Bash, Lua, Swift, R, Markdown, and more
 - **MCP Server**: Built‑in Model Context Protocol server for AI coding assistants
 
+## Benchmark: Token Savings vs. Grep
+
+Beacon's core promise is that an AI agent can answer code questions with one structured tool call instead of many grep + file-read operations. We measured this on Django (~380k LOC, 42,622 indexed nodes) using 10 representative queries that span keyword lookups, semantic paraphrases, cross-subsystem traversals, and import graph queries.
+
+| # | Query type | Beacon tokens | Baseline tokens | % Saved | Recall |
+|---|---|---|---|---|---|
+| 1 | keyword_easy | 1,697 | 3,942 | 57% | ✓ |
+| 2 | semantic_paraphrase | 1,533 | 15,514 | 90% | ✓ |
+| 3 | multi_hop_call_chain | 1,682 | 24,400 | 93% | ✓ |
+| 4 | cross_subsystem | 921 | 23,290 | 96% | ✓ |
+| 5 | graph_traversal_callers | 1,744 | 3,942 | 57% | ✓ |
+| 6 | semantic_no_obvious_keyword | 1,413 | 12,162 | 88% | ✓ |
+| 7 | execution_path | 1,620 | 13,385 | 88% | ✓ |
+| 8 | needle_in_haystack | 1,105 | 16,501 | 93% | ✓ |
+| 9 | import_graph_query | 2,219 | 16,658 | 87% | ✓ |
+| 10 | multi_module_feature | 2,300 | 25,770 | 91% | ✓ |
+| **Total** | | **17,234** | **155,564** | **89%** | **10/10** |
+
+**89% fewer tokens** overall (17,234 beacon vs 155,564 baseline), with a 10.5× average savings ratio and 10/10 recall. Beacon found the right code for every query.
+
+**Methodology:** Baseline simulates what an AI agent does without Beacon — `grep -rl` for relevant keywords across all `.py` files, then reads the top 3 matching files in full. Beacon uses one `get_context_capsule` call with an 8,000-token budget. Token counts use a `chars/4` approximation (standard BPE estimate for code). Run the benchmark yourself:
+
+```bash
+beacon run-benchmark --root ~/repos/django
+```
+
 ## Quick Start
 
 ```bash
@@ -60,6 +86,8 @@ beacon ask
 ## Other Commands
 
 - `beacon capsule <query>` - Generate a context capsule for AI agents
+
+- `beacon run-benchmark [--root <dir>]` - Measure token savings vs grep baseline on 10 representative queries
 
 - `beacon mcp` - Start the MCP server for integration with AI assistants
 

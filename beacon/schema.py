@@ -5,7 +5,7 @@ SQLite schema for Beacon — mirrors vexp-core schema version 5.
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "7"
 
 DDL = """
 PRAGMA journal_mode=WAL;
@@ -14,18 +14,19 @@ PRAGMA foreign_keys=ON;
 -- ── Core graph ────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS nodes (
-    id          INTEGER PRIMARY KEY,
-    name        TEXT NOT NULL,
-    fqn         TEXT NOT NULL UNIQUE,
-    file_path   TEXT NOT NULL,
-    kind        TEXT NOT NULL,   -- function, method, class, interface, ...
-    start_line  INTEGER,
-    end_line    INTEGER,
-    signature   TEXT,
-    docstring   TEXT,
-    is_exported INTEGER DEFAULT 0,
-    is_test     INTEGER DEFAULT 0,
-    repo_alias  TEXT NOT NULL DEFAULT 'primary'
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL,
+    fqn          TEXT NOT NULL UNIQUE,
+    file_path    TEXT NOT NULL,
+    kind         TEXT NOT NULL,   -- function, method, class, interface, ...
+    start_line   INTEGER,
+    end_line     INTEGER,
+    signature    TEXT,
+    docstring    TEXT,
+    body_preview TEXT,            -- first ~20 lines of function body for semantic embedding
+    is_exported  INTEGER DEFAULT 0,
+    is_test      INTEGER DEFAULT 0,
+    repo_alias   TEXT NOT NULL DEFAULT 'primary'
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_file ON nodes(file_path);
@@ -50,6 +51,18 @@ CREATE TABLE IF NOT EXISTS lsp_edges (
     target_fqn  TEXT NOT NULL,
     edge_type   TEXT NOT NULL DEFAULT 'CALLS'
 );
+
+-- Raw import references (module-path text, not resolved to node IDs).
+-- Enables "what files import module X?" queries even when the target module
+-- has no indexed node (e.g. standard library, third-party packages).
+CREATE TABLE IF NOT EXISTS import_refs (
+    id            INTEGER PRIMARY KEY,
+    source_file   TEXT NOT NULL,
+    target_module TEXT NOT NULL,
+    call_site_line INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_import_refs_target ON import_refs(target_module);
+CREATE INDEX IF NOT EXISTS idx_import_refs_source ON import_refs(source_file);
 
 -- Cross-repo edges (multi-repo workspaces)
 CREATE TABLE IF NOT EXISTS cross_repo_edges (

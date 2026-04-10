@@ -2,12 +2,13 @@
 beacon CLI
 
 Commands:
-    index     [<dir>]   — scan + index a codebase
-    search    <query>   — search the index
-    capsule   <query>   — generate a context capsule
-    mcp                 — start MCP stdio server
-    setup               — install hook + MCP config for a project
-    show-config         — print MCP config for AI agents
+    index          [<dir>]   — scan + index a codebase
+    search         <query>   — search the index
+    capsule        <query>   — generate a context capsule
+    run-benchmark           — measure token savings vs grep baseline
+    mcp                     — start MCP stdio server
+    setup                   — install hook + MCP config for a project
+    show-config             — print MCP config for AI agents
 """
 
 import argparse
@@ -228,18 +229,18 @@ def cmd_index(args):
                 cur = conn.execute(
                     """INSERT INTO nodes
                        (name, fqn, file_path, kind, start_line, end_line,
-                        signature, docstring, is_exported, is_test, repo_alias)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        signature, docstring, body_preview, is_exported, is_test, repo_alias)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(fqn) DO UPDATE SET
                          name=excluded.name, file_path=excluded.file_path,
                          kind=excluded.kind, start_line=excluded.start_line,
                          end_line=excluded.end_line, signature=excluded.signature,
-                         docstring=excluded.docstring, is_exported=excluded.is_exported,
-                         is_test=excluded.is_test
+                         docstring=excluded.docstring, body_preview=excluded.body_preview,
+                         is_exported=excluded.is_exported, is_test=excluded.is_test
                        RETURNING id""",
                     (sym.name, sym.fqn, sym.file_path, sym.kind,
                      sym.start_line, sym.end_line, sym.signature, sym.docstring,
-                     int(sym.is_exported), int(sym.is_test), "primary"),
+                     sym.body_preview, int(sym.is_exported), int(sym.is_test), "primary"),
                 )
                 nid = cur.fetchone()[0]
                 changed_node_ids.append(nid)
@@ -378,25 +379,10 @@ def cmd_index(args):
 
 def _resolve_edges_silent(conn, all_edges) -> int:
     """Resolve call edges without any print output. Returns inserted count."""
-    from beacon.indexer.symbols import CallEdge
-    inserted = 0
-    for edge in all_edges:
-        if edge.edge_type == "CONTAINS":
-            src = conn.execute("SELECT id FROM nodes WHERE fqn=?", (edge.source_fqn,)).fetchone()
-            tgt = conn.execute("SELECT id FROM nodes WHERE fqn=?", (edge.target_name,)).fetchone()
-        else:
-            src = conn.execute("SELECT id FROM nodes WHERE fqn=?", (edge.source_fqn,)).fetchone()
-            tgt = (conn.execute("SELECT id FROM nodes WHERE fqn=?", (edge.target_name,)).fetchone()
-                   or conn.execute("SELECT id FROM nodes WHERE name=? LIMIT 1", (edge.target_name,)).fetchone())
-        if src and tgt and src[0] != tgt[0]:
-            conn.execute(
-                "INSERT OR IGNORE INTO edges (source_id, target_id, type, call_site_line, confidence) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (src[0], tgt[0], edge.edge_type, edge.call_site_line, edge.confidence),
-            )
-            inserted += 1
+    from beacon.indexer.indexer import _resolve_call_edges
+    _resolve_call_edges(conn, all_edges)
     conn.commit()
-    return inserted
+    return conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
 
 
 def _finish(conn, root: Path, db_path: Path, console):
@@ -1155,6 +1141,125 @@ def cmd_capsule(args):
     print(render_capsule(cap))
 
 
+# ── run-benchmark ─────────────────────────────────────────────────────────────
+
+def cmd_benchmark(args):
+    """Run the token-savings benchmark and print a rich summary table."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
+    from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+    from beacon.benchmark import run_benchmark, summary_stats, QUERIES
+
+    console = Console(highlight=False)
+    _header(console)
+
+    root = str(Path(args.root or os.getcwd()).resolve())
+    output_path = Path(args.output)
+
+    console.print(f"  [dim]root  [/dim] [bold]{root}[/bold]")
+    console.print(f"  [dim]output[/dim] [dim]{output_path}[/dim]")
+    console.print(f"  [dim]queries[/dim] [bold]{len(QUERIES)}[/bold]")
+    console.print()
+
+    results = []
+
+    with Progress(
+        SpinnerColumn(style="cyan"),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+    ) as progress:
+        task = progress.add_task("Running queries…", total=len(QUERIES))
+
+        def on_result(r):
+            results.append(r)
+            status = "[green]✓[/green]" if r["beacon_recall"] else "[red]✗[/red]"
+            label = r["query"][:52] + "…" if len(r["query"]) > 52 else r["query"]
+            progress.update(
+                task,
+                description=f"[dim]{label}[/dim] → {status} [cyan]{r['pct_saved']:.0f}%[/cyan] saved",
+                advance=1,
+            )
+
+        run_benchmark(root, output_path=output_path, on_result=on_result)
+
+    stats = summary_stats(results)
+
+    # ── Results table ─────────────────────────────────────────────────────────
+    console.print()
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="bold cyan",
+        padding=(0, 1),
+        expand=False,
+    )
+    table.add_column("#", justify="right", width=3, style="dim")
+    table.add_column("Query type", width=30)
+    table.add_column("Beacon", justify="right", width=8)
+    table.add_column("Baseline", justify="right", width=10)
+    table.add_column("Savings", justify="right", width=8)
+    table.add_column("% Saved", justify="right", width=8)
+    table.add_column("Recall", width=14)
+
+    for r in results:
+        beacon_ok = r["beacon_recall"]
+        recall_text = Text()
+        recall_text.append("✓ " if beacon_ok else "✗ ", style="green" if beacon_ok else "red")
+        recall_text.append("beacon", style="green bold" if beacon_ok else "red")
+        recall_text.append("  ")
+        base_ok = r["baseline_recall"]
+        recall_text.append("✓" if base_ok else "✗", style="green" if base_ok else "dim red")
+        recall_text.append(" base", style="dim")
+
+        pct_style = "green bold" if r["pct_saved"] >= 80 else ("yellow" if r["pct_saved"] >= 50 else "red")
+        table.add_row(
+            str(r["id"]),
+            r["type"],
+            f"{r['beacon_tokens']:,}",
+            f"{r['baseline_tokens']:,}",
+            f"{r['savings_ratio']:.1f}×",
+            Text(f"{r['pct_saved']:.0f}%", style=pct_style),
+            recall_text,
+        )
+
+    console.print(table)
+
+    # ── Summary panel ─────────────────────────────────────────────────────────
+    summary_text = Text()
+    summary_text.append(f"  {stats['overall_pct_saved']:.0f}%", style="bold green")
+    summary_text.append(" fewer tokens overall  ", style="")
+    summary_text.append(f"({stats['total_beacon_tokens']:,}", style="dim")
+    summary_text.append(" beacon vs ", style="dim")
+    summary_text.append(f"{stats['total_baseline_tokens']:,}", style="dim")
+    summary_text.append(" baseline)  ", style="dim")
+    summary_text.append(f"{stats['avg_savings_ratio']:.1f}×", style="bold cyan")
+    summary_text.append(" avg  |  ", style="dim")
+    summary_text.append(f"{stats['beacon_recall_count']}/{stats['total_queries']}", style="bold")
+    summary_text.append(" recall  |  ", style="dim")
+    summary_text.append(f"{stats['beacon_wins']}/{stats['total_queries']}", style="bold")
+    summary_text.append(" token wins", style="dim")
+
+    console.print(Panel(
+        summary_text,
+        title="[bold green]Benchmark complete[/bold green]",
+        border_style="green",
+        padding=(0, 1),
+    ))
+    console.print(f"\n  [dim]Detailed results →[/dim] [bold]{output_path}[/bold]")
+
+    failures = [r for r in results if not r["beacon_recall"]]
+    if failures:
+        console.print(f"\n  [red]Recall failures ({len(failures)}):[/red]")
+        for r in failures:
+            console.print(f"    [{r['id']}] {r['query'][:60]}  [dim](type: {r['type']})[/dim]")
+
+
 # ── mcp ───────────────────────────────────────────────────────────────────────
 
 def cmd_mcp(args):
@@ -1325,9 +1430,14 @@ def main():
     p = sub.add_parser("setup", help="Install hook + MCP config for a project")
     p.add_argument("workspace", nargs="?", help="Project root (default: cwd)")
 
+    p = sub.add_parser("run-benchmark", help="Measure token savings vs grep baseline")
+    p.add_argument("--root", default=None, help="Path to indexed codebase (default: cwd)")
+    p.add_argument("--output", default="benchmark_results.json",
+                   help="Path to write JSON results (default: benchmark_results.json)")
+
     args = parser.parse_args()
     {"index": cmd_index, "ask": cmd_ask, "search": cmd_search,
-     "capsule": cmd_capsule, "mcp": cmd_mcp,
+     "capsule": cmd_capsule, "run-benchmark": cmd_benchmark, "mcp": cmd_mcp,
      "show-config": cmd_show_config, "setup": cmd_setup}[args.cmd](args)
 
 

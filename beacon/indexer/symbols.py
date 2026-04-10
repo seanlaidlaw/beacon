@@ -93,6 +93,7 @@ class Symbol:
     end_line: int
     signature: str = ""
     docstring: str = ""
+    body_preview: str = ""   # first ~20 lines of function body for semantic embedding
     is_exported: bool = False
     is_test: bool = False
 
@@ -161,11 +162,12 @@ def _extract_python(tree, src: bytes, rel_path: str) -> FileSymbols:
             fqn = qualified(name)
             sig = _node_text(node.child_by_field_name("parameters") or name_node, src)
             doc = _extract_python_docstring(node, src)
+            preview = _body_preview(node, src)
             exported = not name.startswith("_")
             is_test = name.startswith("test_") or "test" in rel_path.lower()
             sym = Symbol(name, fqn, rel_path, kind,
                          node.start_point[0] + 1, node.end_point[0] + 1,
-                         signature=sig, docstring=doc,
+                         signature=sig, docstring=doc, body_preview=preview,
                          is_exported=exported, is_test=is_test)
             result.symbols.append(sym)
             if parent_fqn:
@@ -230,6 +232,37 @@ def _extract_python_docstring(node: Node, src: bytes) -> str:
                     raw = _node_text(grandchild, src).strip("\"'").strip()
                     return raw[:512]
     return ""
+
+
+def _body_preview(node: Node, src: bytes, max_lines: int = 20, max_chars: int = 800) -> str:
+    """Extract the first *max_lines* lines of a function/method body for embedding.
+
+    Uses tree-sitter to skip the leading docstring node (if present), then
+    takes raw source text of the remaining statements. Strips common
+    indentation and caps at *max_chars* to keep embedding text compact.
+    """
+    body = node.child_by_field_name("body")
+    if not body:
+        return ""
+
+    # Find the byte offset past the docstring (first expression_statement
+    # containing a string literal), if one exists.
+    start_byte = body.start_byte
+    for child in body.children:
+        if child.type == "expression_statement":
+            for gc in child.children:
+                if gc.type == "string":
+                    start_byte = child.end_byte  # skip past the docstring
+                    break
+            break  # only check the first statement
+
+    body_text = src[start_byte:body.end_byte].decode("utf-8", errors="replace")
+    lines = [l for l in body_text.splitlines() if l.strip()]  # drop blank lines
+    preview = "\n".join(lines[:max_lines])
+    if preview:
+        import textwrap
+        preview = textwrap.dedent(preview).strip()
+    return preview[:max_chars]
 
 
 def _extract_js_ts(tree, src: bytes, rel_path: str, lang: str) -> FileSymbols:

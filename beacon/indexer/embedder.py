@@ -27,8 +27,19 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 # ── Sparse TF-IDF ─────────────────────────────────────────────────────────────
 
 def _node_text(row: sqlite3.Row) -> str:
-    """Concatenate text fields in the same order vexp-core uses for TF-IDF."""
-    parts = [row["name"] or "", row["fqn"] or "", row["signature"] or "", row["docstring"] or ""]
+    """Concatenate text fields for embedding.
+
+    Includes body_preview (first ~20 lines of function body) so that semantic
+    similarity captures what the function *does*, not just what it's *called*.
+    Functions without docstrings previously had nearly empty embeddings.
+    """
+    parts = [
+        row["name"] or "",
+        row["fqn"] or "",
+        row["signature"] or "",
+        row["docstring"] or "",
+        row["body_preview"] or "",
+    ]
     return " ".join(p for p in parts if p)
 
 
@@ -39,7 +50,7 @@ def _vectorizer_path(conn: sqlite3.Connection) -> Path:
 
 def build(conn: sqlite3.Connection) -> None:
     """Full TF-IDF rebuild — fits on entire corpus, stores sparse vectors + vectorizer."""
-    rows = conn.execute("SELECT id, name, fqn, signature, docstring FROM nodes").fetchall()
+    rows = conn.execute("SELECT id, name, fqn, signature, docstring, body_preview FROM nodes").fetchall()
     if not rows:
         return
 
@@ -82,7 +93,7 @@ def build_incremental(conn: sqlite3.Connection, node_ids: list[int]) -> None:
     if not node_ids:
         return
 
-    all_rows = conn.execute("SELECT id, name, fqn, signature, docstring FROM nodes").fetchall()
+    all_rows = conn.execute("SELECT id, name, fqn, signature, docstring, body_preview FROM nodes").fetchall()
     if not all_rows:
         return
 
@@ -228,7 +239,7 @@ def get_encoder() -> SentenceEncoder:
 
 def build_dense(conn: sqlite3.Connection) -> None:
     """Full dense embedding rebuild over all nodes."""
-    rows = conn.execute("SELECT id, name, fqn, signature, docstring FROM nodes").fetchall()
+    rows = conn.execute("SELECT id, name, fqn, signature, docstring, body_preview FROM nodes").fetchall()
     if not rows:
         return
 
@@ -260,11 +271,16 @@ def build_dense_incremental(
     """
     if not node_ids:
         return 0, None
-    ph = ",".join("?" * len(node_ids))
-    rows = conn.execute(
-        f"SELECT id, name, fqn, signature, docstring FROM nodes WHERE id IN ({ph})",
-        node_ids,
-    ).fetchall()
+    # SQLite variable limit is typically 999; batch to stay well under it.
+    CHUNK = 900
+    rows = []
+    for i in range(0, len(node_ids), CHUNK):
+        chunk = node_ids[i:i + CHUNK]
+        ph = ",".join("?" * len(chunk))
+        rows.extend(conn.execute(
+            f"SELECT id, name, fqn, signature, docstring, body_preview FROM nodes WHERE id IN ({ph})",
+            chunk,
+        ).fetchall())
     if not rows:
         return 0, None
 

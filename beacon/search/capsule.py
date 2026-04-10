@@ -76,6 +76,18 @@ def _node_to_capsule(r: SearchResult, role: str) -> CapsuleNode:
     )
 
 
+# Minimum edge confidence to follow during BFS expansion.
+# Regex-detected edges have confidence=0.7; tree-sitter AST = 1.0.
+# Filtering at 0.75 keeps AST-detected and LSP edges while dropping
+# low-confidence regex matches that add noise.
+MIN_EDGE_CONFIDENCE = 0.75
+
+# Maximum number of callers/callees to expand from a single node.
+# High-degree utility nodes (loggers, helpers called everywhere) would
+# otherwise flood the capsule with irrelevant neighbors.
+MAX_BFS_FANOUT = 40
+
+
 def _expand_neighbors(
     conn: sqlite3.Connection,
     seed_ids: list[int],
@@ -84,6 +96,9 @@ def _expand_neighbors(
     """
     BFS expansion from seed node IDs.
     Returns {node_id: role} for callers and callees within *depth* hops.
+
+    Edges with confidence < MIN_EDGE_CONFIDENCE are skipped (P3).
+    Nodes with more than MAX_BFS_FANOUT callers/callees are not expanded (P4).
     """
     visited: dict[int, str] = {}
     frontier = list(seed_ids)
@@ -93,18 +108,30 @@ def _expand_neighbors(
         if not frontier:
             break
         ph = ",".join("?" * len(frontier))
-        # Callees (source → target)
+        # Callees (source → target), confidence-filtered, fan-out capped
         for row in conn.execute(
-            f"SELECT DISTINCT target_id FROM edges WHERE source_id IN ({ph}) AND type='CALLS'",
+            f"""SELECT DISTINCT e.target_id
+                FROM edges e
+                WHERE e.source_id IN ({ph})
+                  AND e.type='CALLS'
+                  AND e.confidence >= {MIN_EDGE_CONFIDENCE}
+                  AND (SELECT COUNT(*) FROM edges
+                       WHERE source_id = e.source_id AND type='CALLS') <= {MAX_BFS_FANOUT}""",
             frontier,
         ).fetchall():
             nid = row[0]
             if nid not in visited and nid not in seed_ids:
                 visited[nid] = "callee"
 
-        # Callers (target ← source)
+        # Callers (target ← source), confidence-filtered, fan-out capped
         for row in conn.execute(
-            f"SELECT DISTINCT source_id FROM edges WHERE target_id IN ({ph}) AND type='CALLS'",
+            f"""SELECT DISTINCT e.source_id
+                FROM edges e
+                WHERE e.target_id IN ({ph})
+                  AND e.type='CALLS'
+                  AND e.confidence >= {MIN_EDGE_CONFIDENCE}
+                  AND (SELECT COUNT(*) FROM edges
+                       WHERE target_id = e.target_id AND type='CALLS') <= {MAX_BFS_FANOUT}""",
             frontier,
         ).fetchall():
             nid = row[0]
@@ -116,6 +143,90 @@ def _expand_neighbors(
         prev_frontier = set(visited.keys())
 
     return visited
+
+
+def _file_path_to_module(file_path: str) -> list[str]:
+    """Convert a relative file path to candidate Python module dot-paths.
+
+    e.g. "django/db/models/signals.py" → ["django.db.models.signals",
+                                           "db.models.signals", "models.signals"]
+    Returns multiple candidates (package subsets) to handle partial imports.
+    """
+    p = file_path.replace("\\", "/")
+    if p.endswith(".py"):
+        p = p[:-3]
+    parts = p.split("/")
+    # Remove common package root prefixes (src/, lib/, etc.)
+    if parts[0] in ("src", "lib", "pkg"):
+        parts = parts[1:]
+    # Generate suffix candidates: "a.b.c", "b.c", "c"
+    candidates = []
+    for i in range(len(parts)):
+        candidates.append(".".join(parts[i:]))
+    return candidates
+
+
+def _importer_nodes(
+    conn: sqlite3.Connection,
+    seed_file_paths: list[str],
+    budget_remaining: int,
+) -> list[CapsuleNode]:
+    """Find files that import any of the seed files and return their top nodes.
+
+    Uses the import_refs table which stores raw import target text regardless
+    of whether the target resolved to an indexed node.
+    """
+    if not seed_file_paths:
+        return []
+
+    # Build all module candidates for all seed files
+    candidates: list[str] = []
+    for fp in seed_file_paths:
+        candidates.extend(_file_path_to_module(fp))
+    if not candidates:
+        return []
+
+    ph = ",".join("?" * len(candidates))
+    importer_files: set[str] = set()
+    for row in conn.execute(
+        f"SELECT DISTINCT source_file FROM import_refs WHERE target_module IN ({ph})",
+        candidates,
+    ).fetchall():
+        importer_files.add(row[0])
+
+    # Remove self-imports (the seed files themselves)
+    importer_files -= set(seed_file_paths)
+    if not importer_files:
+        return []
+
+    result_nodes: list[CapsuleNode] = []
+    used = 0
+    for fp in sorted(importer_files):
+        nodes = conn.execute(
+            """SELECT id, name, fqn, file_path, kind, start_line, signature, docstring
+               FROM nodes WHERE file_path=? AND is_exported=1 LIMIT 3""",
+            (fp,),
+        ).fetchall()
+        for n in nodes:
+            text = f"{n['kind']} {n['fqn']}\n{n['signature'] or ''}"
+            tok = _approx_tokens(text)
+            if used + tok > budget_remaining:
+                return result_nodes
+            from .query import SearchResult
+            sr = SearchResult(
+                node_id=n["id"], name=n["name"], fqn=n["fqn"],
+                file_path=n["file_path"], kind=n["kind"],
+                start_line=n["start_line"] or 0,
+                signature=n["signature"] or "",
+                docstring=n["docstring"] or "",
+                score=0.3,
+                reason=f"IMPORTS ({fp})",
+            )
+            cn = _node_to_capsule(sr, "importer")
+            result_nodes.append(cn)
+            used += tok
+
+    return result_nodes
 
 
 def _co_change_nodes(
@@ -255,20 +366,49 @@ def get_capsule(
             cn = _node_to_capsule(sr, role)
             all_nodes.append(cn)
 
-    # ── Step 3: co-change expansion ───────────────────────────────────────
+    # ── Step 3a: co-change expansion ──────────────────────────────────────
     seed_files = list({r.file_path for r in seed_results})
     # Pass the actual remaining budget (after seeds + neighbors already tallied)
     seed_tokens = sum(min(n.token_estimate, MAX_NODE_TOKENS) for n in all_nodes)
     co_nodes = _co_change_nodes(conn, seed_files, max(0, budget - seed_tokens))
     all_nodes.extend(cn for cn in co_nodes if cn.fqn not in exclude)
 
+    # ── Step 3b: importer expansion (P1) ─────────────────────────────────
+    # Find files that import the seed files so "what depends on X?" works.
+    # Cap at 20% of total budget so importers don't crowd out direct context.
+    importer_budget = budget // 5
+    if importer_budget > 0:
+        imp_nodes = _importer_nodes(conn, seed_files, importer_budget)
+        all_nodes.extend(cn for cn in imp_nodes if cn.fqn not in exclude)
+
     # ── Step 4: deduplicate and sort by score ─────────────────────────────
     seen_fqns: set[str] = set()
-    unique_nodes: list[CapsuleNode] = []
+    deduped: list[CapsuleNode] = []
     for cn in sorted(all_nodes, key=lambda x: x.score, reverse=True):
         if cn.fqn not in seen_fqns:
             seen_fqns.add(cn.fqn)
-            unique_nodes.append(cn)
+            deduped.append(cn)
+
+    # P2: Penalise test nodes and unexported symbols when the query is not
+    # test-focused, so production code rises above boilerplate in the budget.
+    query_is_test = any(t in query.lower() for t in ("test", "spec", "fixture", "mock"))
+    if not query_is_test and deduped:
+        fqns = [cn.fqn for cn in deduped]
+        ph2 = ",".join("?" * len(fqns))
+        flags = {
+            row[0]: (bool(row[1]), bool(row[2]))
+            for row in conn.execute(
+                f"SELECT fqn, is_test, is_exported FROM nodes WHERE fqn IN ({ph2})", fqns
+            ).fetchall()
+        }
+        for cn in deduped:
+            is_test, is_exported = flags.get(cn.fqn, (False, True))
+            if is_test:
+                cn.score *= 0.3      # strongly demote test symbols
+            elif not is_exported:
+                cn.score *= 0.85     # mildly demote private symbols
+
+    unique_nodes = sorted(deduped, key=lambda x: x.score, reverse=True)
 
     # ── Step 5: budget trim ───────────────────────────────────────────────
     used = 0
@@ -304,12 +444,13 @@ def render_capsule(cap: Capsule) -> str:
     ]
 
     # Group by role
-    roles = ["seed", "caller", "callee", "co_change"]
+    roles = ["seed", "caller", "callee", "co_change", "importer"]
     role_labels = {
         "seed": "## Seed — direct matches",
         "caller": "## Callers",
         "callee": "## Callees",
         "co_change": "## Co-changing context",
+        "importer": "## Importers — files that depend on this module",
     }
 
     for role in roles:

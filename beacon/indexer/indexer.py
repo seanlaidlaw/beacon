@@ -27,17 +27,17 @@ def _upsert_node(conn: sqlite3.Connection, sym: symbols.Symbol, repo_alias: str 
     cur = conn.execute(
         """INSERT INTO nodes
            (name, fqn, file_path, kind, start_line, end_line,
-            signature, docstring, is_exported, is_test, repo_alias)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            signature, docstring, body_preview, is_exported, is_test, repo_alias)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(fqn) DO UPDATE SET
              name=excluded.name, file_path=excluded.file_path,
              kind=excluded.kind, start_line=excluded.start_line,
              end_line=excluded.end_line, signature=excluded.signature,
-             docstring=excluded.docstring, is_exported=excluded.is_exported,
-             is_test=excluded.is_test
+             docstring=excluded.docstring, body_preview=excluded.body_preview,
+             is_exported=excluded.is_exported, is_test=excluded.is_test
            RETURNING id""",
         (sym.name, sym.fqn, sym.file_path, sym.kind,
-         sym.start_line, sym.end_line, sym.signature, sym.docstring,
+         sym.start_line, sym.end_line, sym.signature, sym.docstring, sym.body_preview,
          int(sym.is_exported), int(sym.is_test), repo_alias),
     )
     return cur.fetchone()[0]
@@ -47,8 +47,20 @@ def _resolve_call_edges(conn: sqlite3.Connection, edges: list[symbols.CallEdge])
     """
     Resolve unqualified target names to node IDs and insert edges.
     For each call edge, look up the target by name (best-effort).
+
+    IMPORTS edges are also stored verbatim in import_refs so that "what files
+    import module X?" queries work even when the target has no indexed node.
     """
     for edge in edges:
+        if edge.edge_type == "IMPORTS":
+            # Store raw import ref regardless of whether target resolves to a node
+            source_file = edge.source_fqn.split("::")[0]
+            conn.execute(
+                "INSERT OR IGNORE INTO import_refs (source_file, target_module, call_site_line) "
+                "VALUES (?, ?, ?)",
+                (source_file, edge.target_name, edge.call_site_line),
+            )
+
         if edge.edge_type == "CONTAINS":
             # CONTAINS edges have FQNs on both sides
             src = conn.execute("SELECT id FROM nodes WHERE fqn=?", (edge.source_fqn,)).fetchone()
@@ -71,6 +83,7 @@ def _resolve_call_edges(conn: sqlite3.Connection, edges: list[symbols.CallEdge])
 def _delete_file_nodes(conn: sqlite3.Connection, rel_path: str) -> None:
     """Remove all nodes (and cascaded edges/embeddings) for a file."""
     conn.execute("DELETE FROM nodes WHERE file_path=?", (rel_path,))
+    conn.execute("DELETE FROM import_refs WHERE source_file=?", (rel_path,))
 
 
 def check_and_reindex(
