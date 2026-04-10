@@ -1408,6 +1408,97 @@ def cmd_show_config(args):
     )
 
 
+# ── logs ──────────────────────────────────────────────────────────────────────
+
+def cmd_logs(args):
+    """Pretty-print MCP request logs from .beacon/logs/."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(highlight=False)
+    root = Path(args.dir or os.getcwd()).resolve()
+    log_dir = root / ".beacon" / "logs"
+
+    if not log_dir.exists():
+        console.print(f"[yellow]No logs found at {log_dir}[/yellow]")
+        return
+
+    log_files = sorted(log_dir.glob("mcp_*.jsonl"), reverse=True)
+    if not log_files:
+        console.print(f"[yellow]No MCP log files in {log_dir}[/yellow]")
+        return
+
+    # Default: most recent session; --all shows every session
+    files_to_show = log_files if args.all else log_files[:1]
+
+    for log_file in files_to_show:
+        console.rule(f"[bold]{log_file.name}[/bold]")
+        entries = []
+        with open(log_file) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+        # Print session start info
+        for e in entries:
+            if e.get("event") == "session_start":
+                console.print(f"  [dim]workspace:[/dim] {e.get('workspace')}")
+                console.print(f"  [dim]started:  [/dim] {e.get('ts')}")
+                break
+
+        # Table of tool calls
+        calls = [e for e in entries if "tool" in e]
+        if not calls:
+            console.print("  [dim](no tool calls)[/dim]")
+            continue
+
+        table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Tool", style="cyan", width=22)
+        table.add_column("Query / Args", width=52)
+        table.add_column("ms", justify="right", style="dim", width=6)
+        table.add_column("~tok", justify="right", width=5)
+        table.add_column("Status", width=7)
+
+        for i, e in enumerate(calls, 1):
+            tool = e.get("tool", "?")
+            a = e.get("args", {})
+
+            # Extract the most descriptive argument
+            query_str = (
+                a.get("task") or a.get("query") or a.get("symbol_fqn")
+                or a.get("start") or a.get("names") or str(a)
+            )
+            if isinstance(query_str, list):
+                query_str = ", ".join(str(x) for x in query_str)
+            query_str = str(query_str)[:50]
+
+            ms = str(e.get("elapsed_ms", "?"))
+            tok = str(e.get("result_tokens_approx", "?"))
+            status = "[red]ERR[/red]" if e.get("error") else "[green]OK[/green]"
+
+            table.add_row(str(i), tool, query_str, ms, tok, status)
+
+        console.print(table)
+
+        if args.verbose:
+            console.print()
+            for i, e in enumerate(calls, 1):
+                console.rule(f"Call {i}: {e.get('tool')}", style="dim")
+                console.print(f"  [dim]args:[/dim] {json.dumps(e.get('args', {}), indent=2)}")
+                if e.get("error"):
+                    console.print(f"  [red]error:[/red] {e['error']}")
+                elif e.get("result_preview"):
+                    console.print(f"  [dim]result (first 300 chars):[/dim]")
+                    console.print(f"  {e['result_preview'][:300]}")
+                console.print()
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1455,10 +1546,16 @@ def main():
     p.add_argument("--output", default="benchmark_results.json",
                    help="Path to write JSON results (default: benchmark_results.json)")
 
+    p = sub.add_parser("logs", help="Show MCP request logs for a project")
+    p.add_argument("dir", nargs="?", help="Project root (default: cwd)")
+    p.add_argument("--all", action="store_true", help="Show all sessions, not just the latest")
+    p.add_argument("--verbose", "-v", action="store_true",
+                   help="Print full args and result preview for each call")
+
     args = parser.parse_args()
     {"index": cmd_index, "ask": cmd_ask, "search": cmd_search,
      "capsule": cmd_capsule, "run-benchmark": cmd_benchmark, "mcp": cmd_mcp,
-     "show-config": cmd_show_config, "setup": cmd_setup}[args.cmd](args)
+     "show-config": cmd_show_config, "setup": cmd_setup, "logs": cmd_logs}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ Start with:
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -231,6 +232,19 @@ class McpServer:
         # Throttle auto-reindex checks to at most once every 30 seconds
         self._last_reindex_check: float = 0.0
         self._reindex_interval: float = 30.0
+        # Request log file — one JSONL file per session in .beacon/logs/
+        log_dir = self.db_path.parent / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._log_path = log_dir / f"mcp_{ts}_{self.session_id[:8]}.jsonl"
+        self._log_fh = open(self._log_path, "a", buffering=1)  # line-buffered
+
+    def _log(self, entry: dict) -> None:
+        """Append a JSON entry to the session log file. Never raises."""
+        try:
+            self._log_fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
 
     def _conn_lazy(self):
         """Open DB connection on first use (lazy so startup is fast)."""
@@ -740,6 +754,14 @@ class McpServer:
                 continue
 
             if method == "initialize":
+                self._log({
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "event": "session_start",
+                    "session": self.session_id[:8],
+                    "workspace": str(self.workspace),
+                    "db": str(self.db_path),
+                    "client": params.get("clientInfo", {}),
+                })
                 self._send({
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {
@@ -755,14 +777,32 @@ class McpServer:
             elif method == "tools/call":
                 tool_name = params.get("name")
                 tool_args = params.get("arguments") or {}
+                t0 = time.monotonic()
+                error_msg: str | None = None
+                result_text: str = ""
                 try:
-                    text = self.call_tool(tool_name, tool_args)
+                    result_text = self.call_tool(tool_name, tool_args)
                     self._send({
                         "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": text}]},
+                        "result": {"content": [{"type": "text", "text": result_text}]},
                     })
                 except Exception as e:
-                    self._error(req_id, -32603, str(e))
+                    error_msg = str(e)
+                    self._error(req_id, -32603, error_msg)
+                finally:
+                    elapsed_ms = round((time.monotonic() - t0) * 1000)
+                    self._log({
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "session": self.session_id[:8],
+                        "tool": tool_name,
+                        "args": tool_args,
+                        "elapsed_ms": elapsed_ms,
+                        "result_chars": len(result_text),
+                        "result_tokens_approx": len(result_text) // 4,
+                        # First 300 chars of result — enough to judge relevance
+                        "result_preview": result_text[:300] if result_text else None,
+                        "error": error_msg,
+                    })
 
             elif method == "ping":
                 self._send({"jsonrpc": "2.0", "id": req_id, "result": {}})
