@@ -221,16 +221,21 @@ def _extract_python(tree, src: bytes, rel_path: str) -> FileSymbols:
 
 
 def _extract_python_docstring(node: Node, src: bytes) -> str:
-    # First statement in body that is a string literal
+    # Only the FIRST statement in the body counts as a docstring.
     body = node.child_by_field_name("body")
     if not body:
         return ""
     for child in body.children:
+        if child.type in ("newline", "comment", "indent", "dedent"):
+            continue
+        # First real statement: if it's an expression_statement holding a
+        # string literal then it's the docstring; otherwise there is none.
         if child.type == "expression_statement":
             for grandchild in child.children:
                 if grandchild.type == "string":
                     raw = _node_text(grandchild, src).strip("\"'").strip()
                     return raw[:512]
+        return ""
     return ""
 
 

@@ -59,12 +59,12 @@ class TestFqnQualification:
     def test_top_level_function(self):
         fs = _py_symbols("def foo():\n    pass\n")
         fqns = {s.fqn for s in fs.symbols}
-        assert "mod::foo" in fqns
+        assert "mod.py::foo" in fqns
 
     def test_top_level_class(self):
         fs = _py_symbols("class MyClass:\n    pass\n")
         fqns = {s.fqn for s in fs.symbols}
-        assert "mod::MyClass" in fqns
+        assert "mod.py::MyClass" in fqns
 
     def test_method_qualified_under_class(self):
         source = """\
@@ -74,7 +74,7 @@ class TestFqnQualification:
         """
         fs = _py_symbols(source)
         fqns = {s.fqn for s in fs.symbols}
-        assert "mod::MyClass.my_method" in fqns
+        assert "mod.py::MyClass.my_method" in fqns
 
     def test_nested_class_method(self):
         source = """\
@@ -85,7 +85,7 @@ class TestFqnQualification:
         """
         fs = _py_symbols(source)
         fqns = {s.fqn for s in fs.symbols}
-        assert "mod::Outer.Inner.deep" in fqns
+        assert "mod.py::Outer.Inner.deep" in fqns
 
     def test_fqn_uses_rel_path_prefix(self):
         fs = _py_symbols("def bar():\n    pass\n", rel_path="pkg/sub/mod.py")
@@ -295,7 +295,7 @@ class TestEdges:
         fs = _py_symbols(source)
         contains = [e for e in fs.edges if e.edge_type == "CONTAINS"]
         parent_fqns = {e.source_fqn for e in contains}
-        assert "mod::A" in parent_fqns
+        assert "mod.py::A" in parent_fqns
 
     def test_import_statement_produces_imports_edge(self):
         source = "import os\n\ndef foo():\n    pass\n"
