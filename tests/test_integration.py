@@ -424,6 +424,38 @@ class TestCLISmoke:
     def test_show_config_exits_zero(self):
         result = self._run("show-config")
         assert result.returncode == 0
+        # stdout must be valid JSON containing the mcpServers key
+        import json as _json
+        cfg = _json.loads(result.stdout)
+        assert "mcpServers" in cfg
+        assert "beacon" in cfg["mcpServers"]
+
+    def test_setup_writes_mcp_to_project_settings_not_global(self, project, tmp_path):
+        """MCP config must land in .claude/settings.json, NOT in ~/.claude.json."""
+        import json as _json
+
+        global_cfg = Path.home() / ".claude.json"
+        before_global = (
+            _json.loads(global_cfg.read_text()) if global_cfg.exists() else {}
+        )
+        before_beacon = before_global.get("mcpServers", {}).get("beacon")
+
+        self._run("setup", str(project))
+
+        # Project settings must contain the MCP entry
+        project_settings = _json.loads(
+            (project / ".claude" / "settings.json").read_text()
+        )
+        assert "beacon" in project_settings.get("mcpServers", {}), \
+            "MCP server entry missing from project .claude/settings.json"
+
+        # Global config must NOT have gained a new beacon entry
+        after_global = (
+            _json.loads(global_cfg.read_text()) if global_cfg.exists() else {}
+        )
+        after_beacon = after_global.get("mcpServers", {}).get("beacon")
+        assert after_beacon == before_beacon, \
+            "setup must not add/change beacon entry in the global ~/.claude.json"
 
     def test_search_empty_db_does_not_crash(self, tmp_path):
         db_path = tmp_path / "empty.db"

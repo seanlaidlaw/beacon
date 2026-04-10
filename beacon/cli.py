@@ -1323,9 +1323,16 @@ def cmd_setup(args):
     guard.chmod(0o755)
     console.print(f"  [green]✓[/green] Hook script  [dim]{guard}[/dim]")
 
-    # ── 2. Hooks → project .claude/settings.json ─────────────────────────────
+    # ── 2. Hooks + MCP server → project .claude/settings.json ───────────────
+    #
+    # MCP config goes in the PROJECT settings (not ~/.claude.json) so that
+    # each project gets its own beacon instance pointing at its own index.db.
+    # Writing to the global user config caused the last-setup project's index
+    # to be used for ALL projects.
     settings_path = workspace / ".claude" / "settings.json"
     settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+
+    # Hooks
     hooks = settings.setdefault("hooks", {})
     existing = hooks.get("PreToolUse", [])
     existing = [e for e in existing
@@ -1333,22 +1340,27 @@ def cmd_setup(args):
                            for h in e.get("hooks", []))]
     existing.extend(HOOK_CONFIG["PreToolUse"])
     hooks["PreToolUse"] = existing
-    settings.pop("mcpServers", None)
-    settings_path.write_text(json.dumps(settings, indent=2))
-    console.print(f"  [green]✓[/green] Hooks        [dim]{settings_path}[/dim]")
 
-    # ── 3. MCP server → ~/.claude.json ───────────────────────────────────────
-    user_cfg_path = Path.home() / ".claude.json"
-    user_cfg = json.loads(user_cfg_path.read_text()) if user_cfg_path.exists() else {}
-    user_cfg.setdefault("mcpServers", {})["beacon"] = {
+    # MCP server (project-scoped)
+    settings.setdefault("mcpServers", {})["beacon"] = {
         "command": python,
         "args": ["-m", "beacon.mcp",
                  "--workspace", str(workspace),
                  "--db", str(db_path)],
         "env": {"PYTHONPATH": beacon_dir},
     }
-    user_cfg_path.write_text(json.dumps(user_cfg, indent=2))
-    console.print(f"  [green]✓[/green] MCP server   [dim]{user_cfg_path}[/dim]  [dim](user scope)[/dim]")
+
+    settings_path.write_text(json.dumps(settings, indent=2))
+    console.print(f"  [green]✓[/green] Hooks        [dim]{settings_path}[/dim]")
+    console.print(f"  [green]✓[/green] MCP server   [dim]{settings_path}[/dim]  [dim](project scope)[/dim]")
+
+    # ── 3. Remove any stale global entry from ~/.claude.json ─────────────────
+    user_cfg_path = Path.home() / ".claude.json"
+    if user_cfg_path.exists():
+        user_cfg = json.loads(user_cfg_path.read_text())
+        if user_cfg.get("mcpServers", {}).pop("beacon", None) is not None:
+            user_cfg_path.write_text(json.dumps(user_cfg, indent=2))
+            console.print(f"  [green]✓[/green] Removed stale global beacon entry from [dim]{user_cfg_path}[/dim]")
 
     # ── 4. Add .beacon/ to .gitignore ─────────────────────────────────────────
     gitignore = workspace / ".gitignore"
@@ -1365,7 +1377,8 @@ def cmd_setup(args):
     console.print()
     console.print(Panel(
         f"[dim]Run:[/dim]  [bold cyan]beacon index {workspace} --no-coupling[/bold cyan]\n"
-        "[dim]Then restart Claude Code to activate the MCP and hook.[/dim]",
+        "[dim]Then restart Claude Code to activate the MCP and hook.[/dim]\n\n"
+        "[dim]The MCP server is scoped to this project — other projects are unaffected.[/dim]",
         title="[bold]Setup complete[/bold]",
         border_style="green",
         padding=(1, 2),
@@ -1385,7 +1398,14 @@ def cmd_show_config(args):
         "args": ["-m", "beacon.mcp", "--workspace", workspace, "--db", db],
         "env": {"PYTHONPATH": beacon_dir},
     }
-    print(json.dumps({"mcpServers": {"beacon": config}}, indent=2))
+    output = {"mcpServers": {"beacon": config}}
+    print(json.dumps(output, indent=2))
+    print(
+        "\n# Add the above to YOUR PROJECT'S .claude/settings.json (not ~/.claude.json)\n"
+        "# so each project uses its own beacon index.\n"
+        "# Or just run:  beacon setup",
+        file=__import__("sys").stderr,
+    )
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
