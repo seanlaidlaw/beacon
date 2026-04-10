@@ -1,3 +1,86 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:80cef46e621c33abdd9db21e50e9606c66d486af8306fef1c6b37fd8f9465404
-size 9529
+<svg height="351.2" width="803.2" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(32,16)">
+<filter filterUnits="userSpaceOnUse" height="359.2" id="shadow" width="811.2" x="-32" y="-24">
+<feGaussianBlur stdDeviation="12"/>
+</filter>
+<rect fill="#000000c0" filter="url(#shadow)" height="287.2" rx="10" ry="10" width="739.2" x="4" y="12"/>
+<rect fill="#282c34" height="287.2" rx="10" ry="10" width="739.2"/>
+<clipPath id="header">
+<rect height="28" width="739.2"/>
+</clipPath>
+<rect clip-path="url(#header)" fill="#383837" height="56" rx="10" ry="10" width="739.2"/>
+<line stroke="#000000c0" stroke-width="0.5" x1="0" x2="739.2" y1="28" y2="28"/><text dominant-baseline="central" fill="#b3b3b3" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="369.6" y="14">beacon search 'embedding function with transformers'</text>
+<g>
+<circle cx="14" cy="14" fill="#ff5f56" r="6" stroke="#ff5f56" stroke-width="0.5"/>
+<circle cx="34" cy="14" fill="#ffbd2e" r="6" stroke="#ffbd2e" stroke-width="0.5"/>
+<circle cx="54" cy="14" fill="#28c941" r="6" stroke="#28c941" stroke-width="0.5"/>
+</g>
+<svg class="terminal" font-family="JetBrains Mono, Fira Code, Source Code Pro, Cascadia Code, Consolas, Menlo, Monaco, DejaVu Sans Mono, monospace, Symbols Nerd Font Mono, Cascadia Mono" font-size="12" height="259.2" width="739.2" y="28">
+<svg fill="#dcdfe4" x="9.6" y="7.2">
+<g>
+<svg height="244.8" viewBox="0 0 60 20.4" width="720">
+<g stroke-width="0.025"/>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="14.4">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">Score </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">Kind </tspan><tspan>        </tspan><tspan fill="#dcdfe4" opacity="0.5">FQN </tspan><tspan>                     </tspan><tspan fill="#dcdfe4" opacity="0.5">Location </tspan><tspan>                 </tspan><tspan fill="#dcdfe4" opacity="0.5">Reason</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="28.8">
+<text xml:space="preserve" y="0.96em"><tspan> </tspan><tspan fill="#dcdfe4" opacity="0.5">──────────────────────────────────────────────────────────────────────────────────────────────────</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="43.2">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.540</tspan><tspan>   </tspan><tspan fill="#dcdfe4">function </tspan><tspan>    </tspan><tspan fill="#dcdfe4">beacon/indexer/symbol… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/indexer/symbols… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance </tspan><tspan fill="#dcdfe4" opacity="0.5">+</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="57.6">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">semantic </tspan><tspan fill="#dcdfe4" opacity="0.5">similarity</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="72">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.526</tspan><tspan>   </tspan><tspan fill="#dcdfe4">function </tspan><tspan>    </tspan><tspan fill="#dcdfe4">beacon/indexer/embedd… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/indexer/embedde… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="86.4">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.500</tspan><tspan>   </tspan><tspan fill="#dcdfe4">class </tspan><tspan>       </tspan><tspan fill="#dcdfe4">beacon/indexer/embedd… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/indexer/embedde… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance </tspan><tspan fill="#dcdfe4" opacity="0.5">+</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="100.8">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">semantic </tspan><tspan fill="#dcdfe4" opacity="0.5">similarity </tspan><tspan fill="#dcdfe4" opacity="0.5">+</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="115.2">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">highly </tspan><tspan fill="#dcdfe4" opacity="0.5">connected</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="129.6">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.480</tspan><tspan>   </tspan><tspan fill="#dcdfe4">method </tspan><tspan>      </tspan><tspan fill="#dcdfe4">beacon/indexer/embedd… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/indexer/embedde… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="144">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.471</tspan><tspan>   </tspan><tspan fill="#dcdfe4">function </tspan><tspan>    </tspan><tspan fill="#dcdfe4">beacon/cli.py::_suppr… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/cli.py:540 </tspan><tspan>        </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance </tspan><tspan fill="#dcdfe4" opacity="0.5">+</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="158.4">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">semantic </tspan><tspan fill="#dcdfe4" opacity="0.5">similarity</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="172.8">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.407</tspan><tspan>   </tspan><tspan fill="#dcdfe4">function </tspan><tspan>    </tspan><tspan fill="#dcdfe4">test_multiprocessing_… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">test_multiprocessing_l… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance </tspan><tspan fill="#dcdfe4" opacity="0.5">+</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="187.2">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">semantic </tspan><tspan fill="#dcdfe4" opacity="0.5">similarity</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="201.6">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.383</tspan><tspan>   </tspan><tspan fill="#dcdfe4">function </tspan><tspan>    </tspan><tspan fill="#dcdfe4">beacon/indexer/embedd… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">beacon/indexer/embedde… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">high </tspan><tspan fill="#dcdfe4" opacity="0.5">text </tspan><tspan fill="#dcdfe4" opacity="0.5">relevance</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="216">
+<text xml:space="preserve" y="0.96em"><tspan>    </tspan><tspan fill="#56b6c2">0.374</tspan><tspan>   </tspan><tspan fill="#dcdfe4">method </tspan><tspan>      </tspan><tspan fill="#dcdfe4">tests/test_model_down… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">tests/test_model_downl… </tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">keyword </tspan><tspan fill="#dcdfe4" opacity="0.5">match </tspan><tspan fill="#dcdfe4" opacity="0.5">+ </tspan><tspan fill="#dcdfe4" opacity="0.5">highly</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="720" y="230.4">
+<text xml:space="preserve" y="0.96em"><tspan>                                                                            </tspan><tspan fill="#dcdfe4" opacity="0.5">connected</tspan></text>
+</svg>
+</g>
+</svg>
+</svg>
+<rect fill="none" height="287.2" rx="10" ry="10" stroke="#000000" stroke-width="0.5" width="739.2"/>
+<rect fill="none" height="285.2" rx="9" ry="9" stroke="#f0f0f080" stroke-width="0.5" width="737.2" x="1" y="1"/>
+</g>
+<style>
+@font-face {
+	font-family: JetBrains Mono;
+	font-weight: 100 800;
+	font-style: normal;
+	src: url(https://raw.githubusercontent.com/pamburus/fonts/refs/heads/main/JetBrainsMono/fonts/variable/JetBrainsMono%5Bwght%5D.woff2) format('woff2');
+}
+</style>
+</svg>

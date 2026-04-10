@@ -1,3 +1,1483 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:c8922971bbe94290a7a0830a58c4b4e880c57c28230b9ce0a5f6182bb65a72d9
-size 54835
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   height="826.4"
+   width="1019.2"
+   version="1.1"
+   id="svg460"
+   sodipodi:docname="beacon_ask.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs460" />
+  <sodipodi:namedview
+     id="namedview460"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.0778332"
+     inkscape:cx="409.15423"
+     inkscape:cy="451.83244"
+     inkscape:window-width="1716"
+     inkscape:window-height="1045"
+     inkscape:window-x="6"
+     inkscape:window-y="38"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg458" />
+  <g
+     transform="translate(32,16)"
+     id="g460">
+    <filter
+       filterUnits="userSpaceOnUse"
+       height="834.4"
+       id="shadow"
+       width="1027.2"
+       x="-32"
+       y="-24">
+      <feGaussianBlur
+         stdDeviation="12"
+         id="feGaussianBlur1" />
+    </filter>
+    <rect
+       fill="#000000c0"
+       filter="url(#shadow)"
+       height="762.4"
+       rx="10"
+       ry="10"
+       width="955.2"
+       x="4"
+       y="12"
+       id="rect1" />
+    <rect
+       fill="#282c34"
+       height="762.4"
+       rx="10"
+       ry="10"
+       width="955.2"
+       id="rect2" />
+    <clipPath
+       id="header">
+      <rect
+         height="28"
+         width="955.2"
+         id="rect3" />
+    </clipPath>
+    <rect
+       clip-path="url(#header)"
+       fill="#383837"
+       height="56"
+       rx="10"
+       ry="10"
+       width="955.2"
+       id="rect4" />
+    <line
+       stroke="#000000c0"
+       stroke-width="0.5"
+       x1="0"
+       x2="955.2"
+       y1="28"
+       y2="28"
+       id="line4" />
+    <text
+       dominant-baseline="central"
+       fill="#b3b3b3"
+       font-family="system-ui, '-apple-system', BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+       font-size="14px"
+       font-weight="bold"
+       text-anchor="middle"
+       x="477.60001"
+       y="14"
+       id="text4">beacon ask</text>
+    <g
+       id="g6">
+      <circle
+         cx="14"
+         cy="14"
+         fill="#ff5f56"
+         r="6"
+         stroke="#ff5f56"
+         stroke-width="0.5"
+         id="circle4" />
+      <circle
+         cx="34"
+         cy="14"
+         fill="#ffbd2e"
+         r="6"
+         stroke="#ffbd2e"
+         stroke-width="0.5"
+         id="circle5" />
+      <circle
+         cx="54"
+         cy="14"
+         fill="#28c941"
+         r="6"
+         stroke="#28c941"
+         stroke-width="0.5"
+         id="circle6" />
+    </g>
+    <svg
+       class="terminal"
+       font-family="JetBrains Mono, Fira Code, Source Code Pro, Cascadia Code, Consolas, Menlo, Monaco, DejaVu Sans Mono, monospace, Symbols Nerd Font Mono, Cascadia Mono"
+       font-size="12"
+       height="734.4"
+       width="955.2"
+       y="28"
+       version="1.1"
+       id="svg459">
+      <svg
+         fill="#dcdfe4"
+         x="9.6"
+         y="7.2"
+         version="1.1"
+         id="svg458">
+        <g
+           id="g457">
+          <svg
+             height="720"
+             viewBox="0 0 78 60"
+             width="936"
+             version="1.1"
+             id="svg7">
+            <g
+               stroke-width="0.025"
+               id="g7">
+              <path
+                 d="M22.2,18 H28.2 V19.2 H22.2 Z"
+                 fill="#5fd7ff"
+                 stroke="#5fd7ff"
+                 id="path6" />
+            </g>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="0"
+             version="1.1"
+             id="svg8">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text7"><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan7">╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="14.4"
+             version="1.1"
+             id="svg17">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text17"><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan8">│</tspan><tspan
+                 id="tspan9">  </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan10">◆ </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan11">Beacon</tspan><tspan
+                 id="tspan12">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan13">semantic </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan14">code </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan15">intelligence</tspan><tspan
+                 id="tspan16">                                                                                          </tspan><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan17">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="28.8"
+             version="1.1"
+             id="svg18">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text18"><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan18">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="72"
+             version="1.1"
+             id="svg30">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text30"><tspan
+                 id="tspan19">  </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan20">❯</tspan><tspan
+                 id="tspan21"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan22">search </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan23">your </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan24">codebase</tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan25">where </tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan26">do </tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan27">i </tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan28">do </tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan29">semantic </tspan><tspan
+                 fill="#dcdfe4"
+                 id="tspan30">embedding </tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="86.4"
+             version="1.1"
+             id="svg37" />
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="115.2"
+             version="1.1"
+             id="svg47">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text47"><tspan
+                 fill="#56b6c2"
+                 id="tspan38">─────────────────────────────────────────────── </tspan><tspan
+                 fill="#56b6c2"
+                 id="tspan39">◆ </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan40">where </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan41">do </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan42">i </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan43">do </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan44">semantic </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan45">embedding</tspan><tspan
+                 id="tspan46"> </tspan><tspan
+                 fill="#56b6c2"
+                 id="tspan47">───────────────────────────────────────────────</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="144"
+             version="1.1"
+             id="svg57">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text57"><tspan
+                 id="tspan48">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan49">[1]</tspan><tspan
+                 id="tspan50">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan51">heading1 </tspan><tspan
+                 id="tspan52">    </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan53">Beacon__Semantic_Code_Intelligence_Engine </tspan><tspan
+                 id="tspan54">    </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan55">0.450</tspan><tspan
+                 id="tspan56">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan57">README.md:1</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="158.4"
+             version="1.1"
+             id="svg69">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text69"><tspan
+                 id="tspan58">  </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan59">[2]</tspan><tspan
+                 id="tspan60">  </tspan><tspan
+                 fill="#5fd7ff"
+                 font-weight="bold"
+                 id="tspan61">function </tspan><tspan
+                 id="tspan62">    </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan63">build_dense </tspan><tspan
+                 id="tspan64">                                  </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan65">0.385</tspan><tspan
+                 id="tspan66">  </tspan><tspan
+                 fill="#56b6c2"
+                 id="tspan67">embedder.py:425 </tspan><tspan
+                 id="tspan68">           </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan69">▶</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="172.8"
+             version="1.1"
+             id="svg79">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text79"><tspan
+                 id="tspan70">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan71">[3]</tspan><tspan
+                 id="tspan72">  </tspan><tspan
+                 fill="#00af87"
+                 opacity="0.5"
+                 id="tspan73">method </tspan><tspan
+                 id="tspan74">      </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan75">TestModelDownload.test_default_model_load… </tspan><tspan
+                 id="tspan76">   </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan77">0.383</tspan><tspan
+                 id="tspan78">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan79">test_model_download.py:45</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="187.2"
+             version="1.1"
+             id="svg89">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text89"><tspan
+                 id="tspan80">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan81">[4]</tspan><tspan
+                 id="tspan82">  </tspan><tspan
+                 fill="#5fd7ff"
+                 opacity="0.5"
+                 id="tspan83">function </tspan><tspan
+                 id="tspan84">    </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan85">expand_query </tspan><tspan
+                 id="tspan86">                                 </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan87">0.104</tspan><tspan
+                 id="tspan88">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan89">query.py:281</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="216"
+             version="1.1"
+             id="svg98">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text98"><tspan
+                 fill="#5fd7ff"
+                 id="tspan90">╭─────────────────────────────────── </tspan><tspan
+                 id="tspan91"> </tspan><tspan
+                 fill="#282c34"
+                 font-weight="bold"
+                 id="tspan92">function </tspan><tspan
+                 id="tspan93">  </tspan><tspan
+                 fill="#dcdfe4"
+                 font-weight="bold"
+                 id="tspan94">build_dense</tspan><tspan
+                 id="tspan95">  </tspan><tspan
+                 fill="#5fd7ff"
+                 opacity="0.5"
+                 id="tspan96">beacon/indexer/embedder.py:425</tspan><tspan
+                 id="tspan97"> </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan98">────────────────────────────────────╮</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="230.4"
+             version="1.1"
+             id="svg119">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text119"><tspan
+                 fill="#5fd7ff"
+                 id="tspan99">│</tspan><tspan
+                 id="tspan100">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan101">425 </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan102">def</tspan><tspan
+                 id="tspan103"> </tspan><tspan
+                 fill="#88c0d0"
+                 id="tspan104">build_dense</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan105">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan106">conn</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan107">:</tspan><tspan
+                 id="tspan108"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan109">sqlite3</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan110">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan111">Connection</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan112">)</tspan><tspan
+                 id="tspan113"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan114">-&gt;</tspan><tspan
+                 id="tspan115"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan116">None</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan117">:</tspan><tspan
+                 id="tspan118">                                                                        </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan119">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="244.8"
+             version="1.1"
+             id="svg132">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text132"><tspan
+                 fill="#5fd7ff"
+                 id="tspan120">│</tspan><tspan
+                 id="tspan121">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan122">426 </tspan><tspan
+                 id="tspan123">    </tspan><tspan
+                 fill="#616e87"
+                 id="tspan124">&quot;&quot;&quot;Full </tspan><tspan
+                 fill="#616e87"
+                 id="tspan125">dense </tspan><tspan
+                 fill="#616e87"
+                 id="tspan126">embedding </tspan><tspan
+                 fill="#616e87"
+                 id="tspan127">rebuild </tspan><tspan
+                 fill="#616e87"
+                 id="tspan128">over </tspan><tspan
+                 fill="#616e87"
+                 id="tspan129">all </tspan><tspan
+                 fill="#616e87"
+                 id="tspan130">nodes.&quot;&quot;&quot;</tspan><tspan
+                 id="tspan131">                                                                    </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan132">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="259.2"
+             version="1.1"
+             id="svg157">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text157"><tspan
+                 fill="#5fd7ff"
+                 id="tspan133">│</tspan><tspan
+                 id="tspan134">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan135">427 </tspan><tspan
+                 id="tspan136">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan137">rows </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan138">=</tspan><tspan
+                 id="tspan139"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan140">conn</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan141">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan142">execute</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan143">(</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan144">&quot;SELECT </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan145">id, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan146">name, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan147">fqn, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan148">signature, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan149">docstring </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan150">FROM </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan151">nodes&quot;</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan152">)</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan153">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan154">fetchall</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan155">()</tspan><tspan
+                 id="tspan156">                               </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan157">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="273.6"
+             version="1.1"
+             id="svg169">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text169"><tspan
+                 fill="#5fd7ff"
+                 id="tspan158">│</tspan><tspan
+                 id="tspan159">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan160">428 </tspan><tspan
+                 id="tspan161">    </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan162">if</tspan><tspan
+                 id="tspan163"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan164">not</tspan><tspan
+                 id="tspan165"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan166">rows</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan167">:</tspan><tspan
+                 id="tspan168">                                                                                                          </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan169">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="288"
+             version="1.1"
+             id="svg176">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text176"><tspan
+                 fill="#5fd7ff"
+                 id="tspan170">│</tspan><tspan
+                 id="tspan171">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan172">429 </tspan><tspan
+                 id="tspan173">        </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan174">return</tspan><tspan
+                 id="tspan175">                                                                                                            </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan176">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="302.4"
+             version="1.1"
+             id="svg181">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text181"><tspan
+                 fill="#5fd7ff"
+                 id="tspan177">│</tspan><tspan
+                 id="tspan178">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan179">430 </tspan><tspan
+                 id="tspan180">                                                                                                                          </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan181">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="316.8"
+             version="1.1"
+             id="svg192">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text192"><tspan
+                 fill="#5fd7ff"
+                 id="tspan182">│</tspan><tspan
+                 id="tspan183">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan184">431 </tspan><tspan
+                 id="tspan185">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan186">encoder </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan187">=</tspan><tspan
+                 id="tspan188"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan189">get_encoder</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan190">()</tspan><tspan
+                 id="tspan191">                                                                                               </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan192">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="331.2"
+             version="1.1"
+             id="svg214">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text214"><tspan
+                 fill="#5fd7ff"
+                 id="tspan193">│</tspan><tspan
+                 id="tspan194">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan195">432 </tspan><tspan
+                 id="tspan196">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan197">texts </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan198">=</tspan><tspan
+                 id="tspan199"> </tspan><tspan
+                 fill="#eceff4"
+                 id="tspan200">[</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan201">_node_text</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan202">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan203">r</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan204">)</tspan><tspan
+                 id="tspan205"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan206">for</tspan><tspan
+                 id="tspan207"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan208">r </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan209">in</tspan><tspan
+                 id="tspan210"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan211">rows</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan212">]</tspan><tspan
+                 id="tspan213">                                                                                 </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan214">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="345.6"
+             version="1.1"
+             id="svg229">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text229"><tspan
+                 fill="#5fd7ff"
+                 id="tspan215">│</tspan><tspan
+                 id="tspan216">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan217">433 </tspan><tspan
+                 id="tspan218">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan219">vecs </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan220">=</tspan><tspan
+                 id="tspan221"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan222">encoder</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan223">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan224">encode</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan225">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan226">texts</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan227">)</tspan><tspan
+                 id="tspan228">                                                                                          </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan229">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="360"
+             version="1.1"
+             id="svg242">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text242"><tspan
+                 fill="#5fd7ff"
+                 id="tspan230">│</tspan><tspan
+                 id="tspan231">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan232">434 </tspan><tspan
+                 id="tspan233">    </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan234">if</tspan><tspan
+                 id="tspan235"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan236">vecs </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan237">is</tspan><tspan
+                 id="tspan238"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan239">None</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan240">:</tspan><tspan
+                 id="tspan241">                                                                                                      </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan242">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="374.4"
+             version="1.1"
+             id="svg256">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text256"><tspan
+                 fill="#5fd7ff"
+                 id="tspan243">│</tspan><tspan
+                 id="tspan244">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan245">435 </tspan><tspan
+                 id="tspan246">        </tspan><tspan
+                 fill="#81a1c1"
+                 id="tspan247">print</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan248">(</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan249">&quot;Dense </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan250">embeddings: </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan251">skipped </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan252">(model </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan253">unavailable)&quot;</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan254">)</tspan><tspan
+                 id="tspan255">                                                            </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan256">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="388.8"
+             version="1.1"
+             id="svg263">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text263"><tspan
+                 fill="#5fd7ff"
+                 id="tspan257">│</tspan><tspan
+                 id="tspan258">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan259">436 </tspan><tspan
+                 id="tspan260">        </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan261">return</tspan><tspan
+                 id="tspan262">                                                                                                            </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan263">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="403.2"
+             version="1.1"
+             id="svg268">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text268"><tspan
+                 fill="#5fd7ff"
+                 id="tspan264">│</tspan><tspan
+                 id="tspan265">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan266">437 </tspan><tspan
+                 id="tspan267">                                                                                                                          </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan268">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="417.6"
+             version="1.1"
+             id="svg288">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text288"><tspan
+                 fill="#5fd7ff"
+                 id="tspan269">│</tspan><tspan
+                 id="tspan270">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan271">438 </tspan><tspan
+                 id="tspan272">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan273">now </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan274">=</tspan><tspan
+                 id="tspan275"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan276">datetime</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan277">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan278">now</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan279">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan280">timezone</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan281">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan282">utc</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan283">)</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan284">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan285">isoformat</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan286">()</tspan><tspan
+                 id="tspan287">                                                                          </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan288">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="432"
+             version="1.1"
+             id="svg331">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text331"><tspan
+                 fill="#5fd7ff"
+                 id="tspan289">│</tspan><tspan
+                 id="tspan290">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan291">439 </tspan><tspan
+                 id="tspan292">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan293">batch </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan294">=</tspan><tspan
+                 id="tspan295"> </tspan><tspan
+                 fill="#eceff4"
+                 id="tspan296">[(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan297">r</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan298">[</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan299">&quot;id&quot;</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan300">],</tspan><tspan
+                 id="tspan301"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan302">vecs</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan303">[</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan304">i</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan305">]</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan306">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan307">tobytes</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan308">(),</tspan><tspan
+                 id="tspan309"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan310">encoder</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan311">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan312">model_name</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan313">,</tspan><tspan
+                 id="tspan314"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan315">now</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan316">)</tspan><tspan
+                 id="tspan317"> </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan318">for</tspan><tspan
+                 id="tspan319"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan320">i</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan321">,</tspan><tspan
+                 id="tspan322"> </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan323">r </tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan324">in</tspan><tspan
+                 id="tspan325"> </tspan><tspan
+                 fill="#81a1c1"
+                 id="tspan326">enumerate</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan327">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan328">rows</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan329">)]</tspan><tspan
+                 id="tspan330">                           </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan331">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="446.4"
+             version="1.1"
+             id="svg341">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text341"><tspan
+                 fill="#5fd7ff"
+                 id="tspan332">│</tspan><tspan
+                 id="tspan333">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan334">440 </tspan><tspan
+                 id="tspan335">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan336">conn</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan337">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan338">executemany</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan339">(</tspan><tspan
+                 id="tspan340">                                                                                                     </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan341">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="460.8"
+             version="1.1"
+             id="svg357">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text357"><tspan
+                 fill="#5fd7ff"
+                 id="tspan342">│</tspan><tspan
+                 id="tspan343">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan344">441 </tspan><tspan
+                 id="tspan345">        </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan346">&quot;INSERT </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan347">OR </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan348">REPLACE </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan349">INTO </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan350">node_embeddings_dense </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan351">(node_id, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan352">vector, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan353">model_name, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan354">updated_at) </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan355">&quot;</tspan><tspan
+                 id="tspan356">                         </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan357">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="475.2"
+             version="1.1"
+             id="svg369">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text369"><tspan
+                 fill="#5fd7ff"
+                 id="tspan358">│</tspan><tspan
+                 id="tspan359">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan360">442 </tspan><tspan
+                 id="tspan361">        </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan362">&quot;VALUES </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan363">(?, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan364">?, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan365">?, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan366">?)&quot;</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan367">,</tspan><tspan
+                 id="tspan368">                                                                                            </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan369">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="489.6"
+             version="1.1"
+             id="svg377">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text377"><tspan
+                 fill="#5fd7ff"
+                 id="tspan370">│</tspan><tspan
+                 id="tspan371">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan372">443 </tspan><tspan
+                 id="tspan373">        </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan374">batch</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan375">,</tspan><tspan
+                 id="tspan376">                                                                                                            </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan377">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="504"
+             version="1.1"
+             id="svg384">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text384"><tspan
+                 fill="#5fd7ff"
+                 id="tspan378">│</tspan><tspan
+                 id="tspan379">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan380">444 </tspan><tspan
+                 id="tspan381">    </tspan><tspan
+                 fill="#eceff4"
+                 id="tspan382">)</tspan><tspan
+                 id="tspan383">                                                                                                                     </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan384">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="518.4"
+             version="1.1"
+             id="svg394">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text394"><tspan
+                 fill="#5fd7ff"
+                 id="tspan385">│</tspan><tspan
+                 id="tspan386">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan387">445 </tspan><tspan
+                 id="tspan388">    </tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan389">conn</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan390">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan391">commit</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan392">()</tspan><tspan
+                 id="tspan393">                                                                                                         </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan394">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="532.8"
+             version="1.1"
+             id="svg426">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text426"><tspan
+                 fill="#5fd7ff"
+                 id="tspan395">│</tspan><tspan
+                 id="tspan396">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan397">446 </tspan><tspan
+                 id="tspan398">    </tspan><tspan
+                 fill="#81a1c1"
+                 id="tspan399">print</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan400">(</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan401">f&quot;Dense </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan402">embeddings: </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan403">{</tspan><tspan
+                 fill="#81a1c1"
+                 id="tspan404">len</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan405">(</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan406">batch</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan407">)</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan408">} </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan409">vectors </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan410">stored </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan411">(model={</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan412">encoder</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan413">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan414">model_name</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan415">}, </tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan416">dim={</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan417">vecs</tspan><tspan
+                 fill="#81a1c1"
+                 font-weight="bold"
+                 id="tspan418">.</tspan><tspan
+                 fill="#d8dee9"
+                 id="tspan419">shape</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan420">[</tspan><tspan
+                 fill="#b48ead"
+                 id="tspan421">1</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan422">]</tspan><tspan
+                 fill="#a3be8c"
+                 id="tspan423">})&quot;</tspan><tspan
+                 fill="#eceff4"
+                 id="tspan424">)</tspan><tspan
+                 id="tspan425">             </tspan><tspan
+                 fill="#5fd7ff"
+                 id="tspan426">│</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="547.2"
+             version="1.1"
+             id="svg427">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text427"><tspan
+                 fill="#5fd7ff"
+                 id="tspan427">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="576"
+             version="1.1"
+             id="svg440">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text440"><tspan
+                 id="tspan428">  </tspan><tspan
+                 fill="#61afef"
+                 opacity="0.5"
+                 id="tspan429">◄ </tspan><tspan
+                 fill="#61afef"
+                 opacity="0.5"
+                 id="tspan430">14 </tspan><tspan
+                 fill="#61afef"
+                 opacity="0.5"
+                 id="tspan431">callers</tspan><tspan
+                 id="tspan432">  </tspan><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan433">► </tspan><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan434">2 </tspan><tspan
+                 fill="#56b6c2"
+                 opacity="0.5"
+                 id="tspan435">callees</tspan><tspan
+                 id="tspan436">  </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan437">· </tspan><tspan
+                 id="tspan438"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan439">~687 </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan440">tokens</tspan></text>
+          </svg>
+          <svg
+             height="14.4"
+             overflow="hidden"
+             width="936"
+             y="604.8"
+             version="1.1"
+             id="svg457">
+            <text
+               xml:space="preserve"
+               y="0.96em"
+               id="text457"><tspan
+                 id="tspan441">  </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan442">[↑↓]</tspan><tspan
+                 id="tspan443"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan444">navigate </tspan><tspan
+                 id="tspan445"> </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan446">[1-9]</tspan><tspan
+                 id="tspan447"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan448">jump </tspan><tspan
+                 id="tspan449"> </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan450">[/]</tspan><tspan
+                 id="tspan451"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan452">new </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan453">search </tspan><tspan
+                 id="tspan454"> </tspan><tspan
+                 fill="#56b6c2"
+                 font-weight="bold"
+                 id="tspan455">[q]</tspan><tspan
+                 id="tspan456"> </tspan><tspan
+                 fill="#dcdfe4"
+                 opacity="0.5"
+                 id="tspan457">quit</tspan></text>
+          </svg>
+        </g>
+      </svg>
+    </svg>
+    <rect
+       fill="none"
+       height="762.4"
+       rx="10"
+       ry="10"
+       stroke="#000000"
+       stroke-width="0.5"
+       width="955.2"
+       id="rect459" />
+    <rect
+       fill="none"
+       height="760.4"
+       rx="9"
+       ry="9"
+       stroke="#f0f0f080"
+       stroke-width="0.5"
+       width="953.2"
+       x="1"
+       y="1"
+       id="rect460" />
+  </g>
+  <style
+     id="style460"></style>
+</svg>

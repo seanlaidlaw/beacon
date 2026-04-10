@@ -1,3 +1,101 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:521e76d7dae7e68012b577d1da80069cf38e6e08816a01a0d67b7a1001c09f0a
-size 12066
+<svg height="466.4" width="1019.2" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(32,16)">
+<filter filterUnits="userSpaceOnUse" height="474.4" id="shadow" width="1027.2" x="-32" y="-24">
+<feGaussianBlur stdDeviation="12"/>
+</filter>
+<rect fill="#000000c0" filter="url(#shadow)" height="402.4" rx="10" ry="10" width="955.2" x="4" y="12"/>
+<rect fill="#282c34" height="402.4" rx="10" ry="10" width="955.2"/>
+<clipPath id="header">
+<rect height="28" width="955.2"/>
+</clipPath>
+<rect clip-path="url(#header)" fill="#383837" height="56" rx="10" ry="10" width="955.2"/>
+<line stroke="#000000c0" stroke-width="0.5" x1="0" x2="955.2" y1="28" y2="28"/><text dominant-baseline="central" fill="#b3b3b3" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="477.6" y="14">beacon index --yes</text>
+<g>
+<circle cx="14" cy="14" fill="#ff5f56" r="6" stroke="#ff5f56" stroke-width="0.5"/>
+<circle cx="34" cy="14" fill="#ffbd2e" r="6" stroke="#ffbd2e" stroke-width="0.5"/>
+<circle cx="54" cy="14" fill="#28c941" r="6" stroke="#28c941" stroke-width="0.5"/>
+</g>
+<svg class="terminal" font-family="JetBrains Mono, Fira Code, Source Code Pro, Cascadia Code, Consolas, Menlo, Monaco, DejaVu Sans Mono, monospace, Symbols Nerd Font Mono, Cascadia Mono" font-size="12" height="374.4" width="955.2" y="28">
+<svg fill="#dcdfe4" x="9.6" y="7.2">
+<g>
+<svg height="360" viewBox="0 0 78 30" width="936">
+<g stroke-width="0.025"/>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="0">
+<text xml:space="preserve" y="0.96em"><tspan fill="#56b6c2" opacity="0.5">╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="14.4">
+<text xml:space="preserve" y="0.96em"><tspan fill="#56b6c2" opacity="0.5">│</tspan><tspan>  </tspan><tspan fill="#56b6c2" font-weight="bold">◆ </tspan><tspan fill="#56b6c2" font-weight="bold">Beacon</tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">semantic </tspan><tspan fill="#dcdfe4" opacity="0.5">code </tspan><tspan fill="#dcdfe4" opacity="0.5">intelligence</tspan><tspan>                                                                                          </tspan><tspan fill="#56b6c2" opacity="0.5">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="28.8">
+<text xml:space="preserve" y="0.96em"><tspan fill="#56b6c2" opacity="0.5">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="57.6">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">root</tspan><tspan>  </tspan><tspan fill="#dcdfe4" font-weight="bold">/Users/sl31/Library/Mobile </tspan><tspan fill="#dcdfe4" font-weight="bold">Documents/com~apple~CloudDocs/Documents/10-19 </tspan><tspan fill="#dcdfe4" font-weight="bold">Personal </tspan><tspan fill="#dcdfe4" font-weight="bold">Projects/14 </tspan><tspan fill="#dcdfe4" font-weight="bold">Custom </tspan><tspan fill="#dcdfe4" font-weight="bold">Programs/14.24</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="72">
+<text xml:space="preserve" y="0.96em"><tspan fill="#dcdfe4" font-weight="bold">beacon/beacon-code</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="86.4">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">db </tspan><tspan>   </tspan><tspan fill="#dcdfe4" opacity="0.5">/Users/sl31/Library/Mobile </tspan><tspan fill="#dcdfe4" opacity="0.5">Documents/com~apple~CloudDocs/Documents/10-19 </tspan><tspan fill="#dcdfe4" opacity="0.5">Personal </tspan><tspan fill="#dcdfe4" opacity="0.5">Projects/14 </tspan><tspan fill="#dcdfe4" opacity="0.5">Custom </tspan><tspan fill="#dcdfe4" opacity="0.5">Programs/14.24</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="100.8">
+<text xml:space="preserve" y="0.96em"><tspan fill="#dcdfe4" opacity="0.5">beacon/beacon-code/.beacon/index.db</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="129.6">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#dcdfe4" font-weight="bold">65</tspan><tspan> </tspan><tspan fill="#dcdfe4">indexable </tspan><tspan fill="#dcdfe4">files </tspan><tspan> </tspan><tspan fill="#56b6c2">python</tspan><tspan> </tspan><tspan fill="#dcdfe4" opacity="0.5">60</tspan><tspan>  </tspan><tspan fill="#56b6c2">markdown</tspan><tspan> </tspan><tspan fill="#dcdfe4" opacity="0.5">2</tspan><tspan>  </tspan><tspan fill="#56b6c2">bash</tspan><tspan> </tspan><tspan fill="#dcdfe4" opacity="0.5">2</tspan><tspan>  </tspan><tspan fill="#56b6c2">javascript</tspan><tspan> </tspan><tspan fill="#dcdfe4" opacity="0.5">1</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="158.4">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">model</tspan><tspan>  </tspan><tspan fill="#56b6c2">jina-code-embeddings-1.5b</tspan><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">(use </tspan><tspan fill="#dcdfe4" opacity="0.5">--configure </tspan><tspan fill="#dcdfe4" opacity="0.5">to </tspan><tspan fill="#dcdfe4" opacity="0.5">change)</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="187.2">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#dcdfe4" opacity="0.5">65 </tspan><tspan fill="#dcdfe4" opacity="0.5">files </tspan><tspan fill="#dcdfe4" opacity="0.5">unchanged </tspan><tspan fill="#dcdfe4" opacity="0.5">— </tspan><tspan fill="#dcdfe4" opacity="0.5">skipping</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="201.6">
+<text xml:space="preserve" y="0.96em"><tspan>  </tspan><tspan fill="#98c379">✓</tspan><tspan> </tspan><tspan fill="#dcdfe4">Index </tspan><tspan fill="#dcdfe4">is </tspan><tspan fill="#dcdfe4">already </tspan><tspan fill="#dcdfe4">up </tspan><tspan fill="#dcdfe4">to </tspan><tspan fill="#dcdfe4">date. </tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="216">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">╭─────────────────────────────────────────────────────── </tspan><tspan fill="#98c379" font-weight="bold">✓ </tspan><tspan fill="#98c379" font-weight="bold">Index </tspan><tspan fill="#98c379" font-weight="bold">complete</tspan><tspan> </tspan><tspan fill="#98c379">───────────────────────────────────────────────────────╮</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="230.4">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>                                                                                                                                </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="244.8">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">Nodes </tspan><tspan>                                                                                                               </tspan><tspan fill="#56b6c2" font-weight="bold">258 </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="259.2">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">Edges </tspan><tspan>                                                                                                               </tspan><tspan fill="#56b6c2" font-weight="bold">253 </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="273.6">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">TF-IDF </tspan><tspan fill="#dcdfe4" opacity="0.5">embeddings </tspan><tspan>                                                                                                   </tspan><tspan fill="#56b6c2" font-weight="bold">258 </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="288">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">Dense </tspan><tspan fill="#dcdfe4" opacity="0.5">embeddings </tspan><tspan>                                                                                                    </tspan><tspan fill="#56b6c2" font-weight="bold">258 </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="302.4">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>    </tspan><tspan fill="#dcdfe4" opacity="0.5">Index </tspan><tspan>                     </tspan><tspan fill="#56b6c2" font-weight="bold">/Users/sl31/Library/Mobile </tspan><tspan fill="#56b6c2" font-weight="bold">Documents/com~apple~CloudDocs/Documents/10-19 </tspan><tspan fill="#56b6c2" font-weight="bold">Personal </tspan><tspan fill="#56b6c2" font-weight="bold">Projects/14 </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="316.8">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>                                                                   </tspan><tspan fill="#56b6c2" font-weight="bold">Custom </tspan><tspan fill="#56b6c2" font-weight="bold">Programs/14.24 </tspan><tspan fill="#56b6c2" font-weight="bold">beacon/beacon-code/.beacon/index.db </tspan><tspan>   </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="331.2">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">│</tspan><tspan>                                                                                                                                </tspan><tspan fill="#98c379">│</tspan></text>
+</svg>
+<svg height="14.4" overflow="hidden" width="936" y="345.6">
+<text xml:space="preserve" y="0.96em"><tspan fill="#98c379">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</tspan></text>
+</svg>
+</g>
+</svg>
+</svg>
+<rect fill="none" height="402.4" rx="10" ry="10" stroke="#000000" stroke-width="0.5" width="955.2"/>
+<rect fill="none" height="400.4" rx="9" ry="9" stroke="#f0f0f080" stroke-width="0.5" width="953.2" x="1" y="1"/>
+</g>
+<style>
+@font-face {
+	font-family: JetBrains Mono;
+	font-weight: 100 800;
+	font-style: normal;
+	src: url(https://raw.githubusercontent.com/pamburus/fonts/refs/heads/main/JetBrainsMono/fonts/variable/JetBrainsMono%5Bwght%5D.woff2) format('woff2');
+}
+</style>
+</svg>
