@@ -286,3 +286,34 @@ class TestSearch:
         assert isinstance(r.score, float)
         assert isinstance(r.score_breakdown, dict)
         assert "bm25" in r.score_breakdown
+
+    def test_dense_query_does_not_affect_bm25_candidates(self):
+        """BM25 candidates come from the *query*, not dense_query (HyDE snippet)."""
+        conn = _make_db()
+        # Node matches the keyword query "authenticate_user" via BM25
+        nid = _insert_node(conn, name="authenticate_user", fqn="auth::authenticate_user",
+                           signature="def authenticate_user(request):")
+        # Pass a dense_query that mentions something completely different
+        results_with_hyde = search(conn, "authenticate_user",
+                                   dense_query="let x = unrelatedSnippet()")
+        results_without = search(conn, "authenticate_user")
+        # Node must appear in both — BM25 finds it regardless of dense_query
+        fqns_with = [r.fqn for r in results_with_hyde]
+        fqns_without = [r.fqn for r in results_without]
+        assert "auth::authenticate_user" in fqns_with
+        assert "auth::authenticate_user" in fqns_without
+
+    def test_dense_query_parameter_is_accepted(self):
+        """search() accepts dense_query without raising — no dense embeddings in
+        the in-memory test DB so semantic scores will be 0, but the call succeeds."""
+        conn = _make_db()
+        _insert_node(conn, name="filter_by_date", fqn="risk::filter_by_date",
+                     docstring="filter encounters after last test date")
+        results = search(
+            conn,
+            "filter encounters by test date",
+            dense_query="let filtered = encounters.filter { $0.date > lastTestDate }",
+        )
+        # BM25 should still find the node even without dense embeddings
+        fqns = [r.fqn for r in results]
+        assert "risk::filter_by_date" in fqns

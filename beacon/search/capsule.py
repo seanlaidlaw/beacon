@@ -316,6 +316,7 @@ def get_capsule(
     include_observations: bool = True,
     exclude_fqns: set[str] | None = None,
     anchor_fqns: list[str] | None = None,
+    hypothetical_code: str | None = None,
 ) -> Capsule:
     """
     Build a context capsule for *query* within *max_tokens* budget.
@@ -326,6 +327,11 @@ def get_capsule(
       3. Co-change expansion
       4. Linked observation retrieval
       5. Budget trim (highest-scoring nodes first)
+
+    hypothetical_code, if provided, is used for the dense (semantic) search
+    pass instead of *query*. Write a short code snippet in the target
+    language resembling what you're looking for (HyDE technique). BM25 still
+    uses *query* so both signals work together.
     """
     cap = Capsule(query=query, token_budget=max_tokens)
     budget = max_tokens
@@ -333,7 +339,8 @@ def get_capsule(
     exclude = exclude_fqns or set()
 
     # ── Step 1: seed nodes ────────────────────────────────────────────────
-    seed_results = search(conn, query, limit=15, anchor_fqns=anchor_fqns)
+    seed_results = search(conn, query, limit=15, anchor_fqns=anchor_fqns,
+                          dense_query=hypothetical_code)
     seed_ids = [r.node_id for r in seed_results]
     for r in seed_results:
         if r.fqn in exclude:

@@ -333,10 +333,15 @@ def search(
     limit: int = 20,
     kind_filter: str | None = None,
     anchor_fqns: list[str] | None = None,
+    dense_query: str | None = None,
 ) -> list[SearchResult]:
     """
     3-layer hybrid search. anchor_fqns (from expand_query) are added as
     additional candidates with a baseline graph score.
+
+    dense_query overrides the text sent to the semantic (dense/TF-IDF) layer.
+    Pass a hypothetical code snippet (HyDE) for far better semantic matching on
+    natural-language queries — BM25 still uses the original *query*.
     """
     # Layer 1: BM25
     bm25_hits = _bm25_search(conn, query, limit=limit * 5)
@@ -361,10 +366,13 @@ def search(
     if not all_ids:
         return []
 
-    # Layer 2: Dense (preferred) or TF-IDF fallback
-    semantic_dict = _dense_scores(conn, query, all_ids)
+    # Layer 2: Dense (preferred) or TF-IDF fallback.
+    # Use HyDE snippet if provided — code→code similarity is much stronger
+    # than NL→code in the embedding space.
+    dense_input = dense_query if dense_query else query
+    semantic_dict = _dense_scores(conn, dense_input, all_ids)
     if not semantic_dict:
-        semantic_dict = _tfidf_scores(conn, query, all_ids)
+        semantic_dict = _tfidf_scores(conn, dense_input, all_ids)
 
     # Layer 3: Graph
     graph_dict = _graph_scores(conn, all_ids)

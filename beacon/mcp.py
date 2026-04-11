@@ -25,12 +25,28 @@ TOOLS = [
         "name": "run_pipeline",
         "description": (
             "PRIMARY TOOL — full analysis pipeline (context search + impact + memory). "
-            "Use for ANY codebase task before making changes."
+            "Use for ANY codebase task before making changes. "
+            "For natural-language questions, also pass `hypothetical_code` — a short "
+            "code snippet in the target language that resembles what you're looking for. "
+            "This is embedded directly against the index (HyDE technique) and dramatically "
+            "improves semantic retrieval. BM25 keyword search still uses `task`, so both "
+            "signals work together."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "task": {"type": "string", "description": "Description of the task"},
+                "hypothetical_code": {
+                    "type": "string",
+                    "description": (
+                        "RECOMMENDED for natural-language queries. A short code snippet "
+                        "(5-20 lines) in the target language resembling the code you want "
+                        "to find — invent plausible identifier names. Example: to find "
+                        "encounter filtering by test date in Swift, write "
+                        "`let filtered = encounters.filter { $0.date > lastTestDate }`. "
+                        "Used for semantic (dense) search only; BM25 still uses `task`."
+                    ),
+                },
                 "preset": {
                     "type": "string",
                     "enum": ["auto", "explore", "modify", "debug", "refactor"],
@@ -47,11 +63,23 @@ TOOLS = [
     },
     {
         "name": "get_context_capsule",
-        "description": "Lightweight context search via semantic + graph search.",
+        "description": (
+            "Lightweight context search via semantic + graph search. "
+            "Pass `hypothetical_code` alongside `query` for better semantic matching "
+            "on natural-language questions (HyDE technique)."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
+                "hypothetical_code": {
+                    "type": "string",
+                    "description": (
+                        "RECOMMENDED for natural-language queries. A short code snippet "
+                        "in the target language that resembles what you want to find. "
+                        "Used for semantic (dense) search; BM25 still uses `query`."
+                    ),
+                },
                 "max_tokens": {"type": "number"},
                 "pivot_depth": {"type": "number"},
                 "include_tests": {"type": "boolean"},
@@ -305,6 +333,7 @@ class McpServer:
         from beacon.search.query import expand_query
 
         task = params["task"]
+        hypothetical_code = params.get("hypothetical_code") or None
         max_tokens = int(params.get("max_tokens", 10_000))
         preset = params.get("preset", "auto")
         explicit_steps = params.get("steps")
@@ -321,7 +350,8 @@ class McpServer:
                 tool = step.get("tool")
                 sp = step.get("params") or {}
                 if tool == "capsule":
-                    cap = get_capsule(conn, task, max_tokens=sp.get("max_tokens", max_tokens // 2))
+                    cap = get_capsule(conn, task, max_tokens=sp.get("max_tokens", max_tokens // 2),
+                                      hypothetical_code=hypothetical_code)
                     parts.append(render_capsule(cap))
                 elif tool == "impact":
                     fqn = sp.get("symbol_fqn") or task
@@ -342,7 +372,8 @@ class McpServer:
         else:
             # Default pipeline based on preset
             cap = get_capsule(conn, task, max_tokens=max_tokens // 2, pivot_depth=2,
-                              exclude_fqns=self._sent_fqns, anchor_fqns=anchor_fqns or None)
+                              exclude_fqns=self._sent_fqns, anchor_fqns=anchor_fqns or None,
+                              hypothetical_code=hypothetical_code)
             # Track what was sent for session-level dedup
             self._sent_fqns.update(n.fqn for n in cap.nodes)
             parts.append(render_capsule(cap))
@@ -372,6 +403,7 @@ class McpServer:
         self._maybe_reindex()
         conn = self._conn_lazy()
         query = params["query"]
+        hypothetical_code = params.get("hypothetical_code") or None
         _, anchor_fqns = expand_query(conn, query)
         cap = get_capsule(
             conn,
@@ -380,6 +412,7 @@ class McpServer:
             pivot_depth=int(params.get("pivot_depth", 2)),
             exclude_fqns=self._sent_fqns,
             anchor_fqns=anchor_fqns or None,
+            hypothetical_code=hypothetical_code,
         )
         self._sent_fqns.update(n.fqn for n in cap.nodes)
         result = render_capsule(cap)
