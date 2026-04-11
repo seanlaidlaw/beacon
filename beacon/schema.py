@@ -5,7 +5,7 @@ SQLite schema for Beacon — mirrors vexp-core schema version 5.
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = "7"
+SCHEMA_VERSION = "8"
 
 DDL = """
 PRAGMA journal_mode=WAL;
@@ -259,8 +259,10 @@ CREATE TABLE IF NOT EXISTS meta (
 -- ── FTS5 virtual tables ───────────────────────────────────────────────────────
 -- These are kept in sync via triggers below.
 
+-- body_preview is included so keyword search can find terms inside function bodies.
+-- This is especially important for Swift/Go/Rust where docstrings are often absent.
 CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
-    name, fqn, docstring, signature,
+    name, fqn, docstring, signature, body_preview,
     content='nodes',
     content_rowid='id'
 );
@@ -274,20 +276,20 @@ CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
 -- ── FTS5 sync triggers ────────────────────────────────────────────────────────
 
 CREATE TRIGGER IF NOT EXISTS nodes_ai AFTER INSERT ON nodes BEGIN
-    INSERT INTO nodes_fts(rowid, name, fqn, docstring, signature)
-    VALUES (new.id, new.name, new.fqn, new.docstring, new.signature);
+    INSERT INTO nodes_fts(rowid, name, fqn, docstring, signature, body_preview)
+    VALUES (new.id, new.name, new.fqn, new.docstring, new.signature, new.body_preview);
 END;
 
 CREATE TRIGGER IF NOT EXISTS nodes_au AFTER UPDATE ON nodes BEGIN
-    INSERT INTO nodes_fts(nodes_fts, rowid, name, fqn, docstring, signature)
-    VALUES ('delete', old.id, old.name, old.fqn, old.docstring, old.signature);
-    INSERT INTO nodes_fts(rowid, name, fqn, docstring, signature)
-    VALUES (new.id, new.name, new.fqn, new.docstring, new.signature);
+    INSERT INTO nodes_fts(nodes_fts, rowid, name, fqn, docstring, signature, body_preview)
+    VALUES ('delete', old.id, old.name, old.fqn, old.docstring, old.signature, old.body_preview);
+    INSERT INTO nodes_fts(rowid, name, fqn, docstring, signature, body_preview)
+    VALUES (new.id, new.name, new.fqn, new.docstring, new.signature, new.body_preview);
 END;
 
 CREATE TRIGGER IF NOT EXISTS nodes_ad AFTER DELETE ON nodes BEGIN
-    INSERT INTO nodes_fts(nodes_fts, rowid, name, fqn, docstring, signature)
-    VALUES ('delete', old.id, old.name, old.fqn, old.docstring, old.signature);
+    INSERT INTO nodes_fts(nodes_fts, rowid, name, fqn, docstring, signature, body_preview)
+    VALUES ('delete', old.id, old.name, old.fqn, old.docstring, old.signature, old.body_preview);
 END;
 
 CREATE TRIGGER IF NOT EXISTS obs_ai AFTER INSERT ON observations BEGIN
@@ -320,7 +322,14 @@ def _needs_rebuild(conn: sqlite3.Connection) -> bool:
     # Version mismatch — also verify critical columns exist
     try:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(nodes)").fetchall()}
-        return "kind" not in cols or "repo_alias" not in cols
+        if "kind" not in cols or "repo_alias" not in cols:
+            return True
+        # Check that FTS5 includes body_preview (added in schema v8)
+        fts_info = conn.execute("PRAGMA table_info(nodes_fts)").fetchall()
+        fts_cols = {r[1] for r in fts_info}
+        if "body_preview" not in fts_cols:
+            return True
+        return False
     except sqlite3.OperationalError:
         return True
 

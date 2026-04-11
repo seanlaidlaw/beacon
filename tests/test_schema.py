@@ -40,19 +40,27 @@ class TestNeedsRebuild:
         assert _needs_rebuild(conn) is True
 
     def test_old_version_with_all_critical_columns_returns_false(self):
-        # Old version but both 'kind' and 'repo_alias' exist — considered compatible
+        # Old version but all required columns + FTS5 with body_preview → compatible
         conn = sqlite3.connect(":memory:")
         conn.execute("CREATE TABLE meta (key TEXT, value TEXT)")
         conn.execute("INSERT INTO meta VALUES ('schema_version', '0')")
-        conn.execute("CREATE TABLE nodes (id INTEGER PRIMARY KEY, kind TEXT, repo_alias TEXT)")
+        conn.execute("CREATE TABLE nodes (id INTEGER PRIMARY KEY, kind TEXT, repo_alias TEXT, body_preview TEXT)")
+        conn.execute(
+            "CREATE VIRTUAL TABLE nodes_fts USING fts5("
+            "name, fqn, docstring, signature, body_preview, content='nodes', content_rowid='id')"
+        )
         conn.commit()
         assert _needs_rebuild(conn) is False
 
     def test_empty_meta_table_with_critical_columns_returns_false(self):
-        # meta table exists but no schema_version row; nodes has required columns
+        # meta table exists but no schema_version row; nodes + FTS5 have required columns
         conn = sqlite3.connect(":memory:")
         conn.execute("CREATE TABLE meta (key TEXT, value TEXT)")
-        conn.execute("CREATE TABLE nodes (id INTEGER PRIMARY KEY, kind TEXT, repo_alias TEXT)")
+        conn.execute("CREATE TABLE nodes (id INTEGER PRIMARY KEY, kind TEXT, repo_alias TEXT, body_preview TEXT)")
+        conn.execute(
+            "CREATE VIRTUAL TABLE nodes_fts USING fts5("
+            "name, fqn, docstring, signature, body_preview, content='nodes', content_rowid='id')"
+        )
         conn.commit()
         # row is None → falls through to column check → columns exist → False
         assert _needs_rebuild(conn) is False

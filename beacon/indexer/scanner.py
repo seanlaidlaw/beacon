@@ -184,14 +184,35 @@ class Scanner:
     def collect(self) -> list[tuple[Path, str]]:
         """
         Walk root and return [(path, language), ...] for all indexable files.
-        Uses os.walk so excluded directories are pruned before descending —
-        critical for large trees like conda environments.
+
+        Symlinks to directories are followed so that symlinked sub-trees and
+        monorepo sub-packages are indexed.  Cycle detection via (dev, inode)
+        pairs prevents infinite loops when a symlink points back to an ancestor.
+
+        Nested git repos (git submodules, vendored repos) are traversed — their
+        .git directories are excluded by ALWAYS_EXCLUDE_DIRS, and their
+        .gitignore files are picked up by the per-directory walk in _is_ignored.
         """
         import os
         results: list[tuple[Path, str]] = []
+        # Track visited (device, inode) pairs to break symlink cycles.
+        visited_inodes: set[tuple[int, int]] = set()
 
-        for dirpath, dirnames, filenames in os.walk(self.root, followlinks=False):
+        for dirpath, dirnames, filenames in os.walk(self.root, followlinks=True):
             cur = Path(dirpath)
+
+            # Cycle detection: if we've already visited this real directory
+            # (possibly via a different symlink path), skip it.
+            try:
+                st = os.stat(dirpath)
+                inode_key = (st.st_dev, st.st_ino)
+            except OSError:
+                dirnames.clear()
+                continue
+            if inode_key in visited_inodes:
+                dirnames.clear()
+                continue
+            visited_inodes.add(inode_key)
 
             # Prune excluded directories in-place (prevents os.walk from descending)
             dirnames[:] = sorted(
@@ -199,8 +220,6 @@ class Scanner:
                 if d not in ALWAYS_EXCLUDE_DIRS
                 and not self._is_ignored(cur / d)
             )
-
-            rel_dir = str(cur.relative_to(self.root)) if cur != self.root else ""
 
             for filename in sorted(filenames):
                 lang = _get_lang_map().get(Path(filename).suffix.lower())

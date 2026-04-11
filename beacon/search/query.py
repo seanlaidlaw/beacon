@@ -32,8 +32,8 @@ W_DENSE = 0.40
 W_GRAPH = 0.15
 
 # BM25 FTS5 column weights — positional, must match FTS5 column order:
-# nodes_fts columns: name, fqn, docstring, signature
-BM25_WEIGHTS = (10.0, 5.0, 1.0, 2.0)
+# nodes_fts columns: name, fqn, docstring, signature, body_preview
+BM25_WEIGHTS = (10.0, 5.0, 1.0, 2.0, 0.5)
 
 
 @dataclass
@@ -109,8 +109,9 @@ def _fallback_like_search(conn: sqlite3.Connection, query: str, limit: int) -> l
     for tok in tokens:
         pattern = f"%{tok}%"
         for row in conn.execute(
-            "SELECT id FROM nodes WHERE name LIKE ? OR fqn LIKE ? LIMIT ?",
-            (pattern, pattern, limit),
+            "SELECT id FROM nodes WHERE name LIKE ? OR fqn LIKE ?"
+            " OR body_preview LIKE ? OR docstring LIKE ? LIMIT ?",
+            (pattern, pattern, pattern, pattern, limit),
         ).fetchall():
             hits[row[0]] = hits.get(row[0], 0.0) + 1.0
     return sorted(hits.items(), key=lambda x: x[1], reverse=True)[:limit]

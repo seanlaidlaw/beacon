@@ -54,3 +54,8 @@ testpaths = ["tests"]
 markers = [
     "slow: tests that download or load large ML models (skip with -m 'not slow')",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

@@ -1,4 +1,5 @@
 """Tests for beacon/indexer/scanner.py — file discovery and ignore logic."""
+import os
 import tempfile
 from pathlib import Path
 
@@ -186,3 +187,85 @@ class TestScannerCollect:
         results = scanner.collect()
         names = {p.name for p, _ in results}
         assert "module.py" in names
+
+
+# ── Symlink handling ──────────────────────────────────────────────────────────
+
+class TestSymlinks:
+    def test_symlinked_directory_is_followed(self, tmp_path):
+        """A symlink to a directory inside the root should be indexed."""
+        real_dir = tmp_path / "_real_pkg"
+        real_dir.mkdir()
+        (real_dir / "helper.py").write_text("def helper(): pass")
+
+        link = tmp_path / "pkg"
+        link.symlink_to(real_dir)
+
+        scanner = Scanner(tmp_path)
+        results = scanner.collect()
+        names = {p.name for p, _ in results}
+        assert "helper.py" in names
+
+    def test_symlink_cycle_terminates(self, tmp_path):
+        """A symlink that points back to an ancestor must not cause infinite recursion."""
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        (subdir / "real.py").write_text("x = 1")
+
+        # Create a cycle: subdir/loop -> tmp_path (its own grandparent)
+        loop = subdir / "loop"
+        loop.symlink_to(tmp_path)
+
+        scanner = Scanner(tmp_path)
+        # Must terminate; real.py should still be collected exactly once
+        results = scanner.collect()
+        names = [p.name for p, _ in results]
+        assert "real.py" in names
+        assert names.count("real.py") == 1
+
+    def test_two_symlinks_to_same_dir_indexed_once(self, tmp_path):
+        """Multiple symlinks pointing to the same real directory are deduplicated."""
+        real_dir = tmp_path / "_shared"
+        real_dir.mkdir()
+        (real_dir / "util.py").write_text("pass")
+
+        (tmp_path / "link_a").symlink_to(real_dir)
+        (tmp_path / "link_b").symlink_to(real_dir)
+
+        scanner = Scanner(tmp_path)
+        results = scanner.collect()
+        names = [p.name for p, _ in results]
+        # util.py should appear exactly once, not twice
+        assert names.count("util.py") == 1
+
+    def test_nested_git_repo_is_traversed(self, tmp_path):
+        """A subdirectory that is itself a git repo (has .git/) should be indexed.
+
+        Note: 'vendor' is in ALWAYS_EXCLUDE_DIRS so we use a plain subdir name.
+        The key behaviour is that .git inside the subdir is excluded but the
+        source files beside it are collected.
+        """
+        subrepo = tmp_path / "submodules" / "lib"
+        subrepo.mkdir(parents=True)
+        (subrepo / ".git").mkdir()          # .git excluded by ALWAYS_EXCLUDE_DIRS
+        (subrepo / "core.py").write_text("pass")   # source files should be collected
+
+        scanner = Scanner(tmp_path)
+        results = scanner.collect()
+        names = {p.name for p, _ in results}
+        assert "core.py" in names
+
+    def test_symlinked_file_in_subdir_collected(self, tmp_path):
+        """A symlink to a file (not a dir) inside the root is also collected."""
+        real_file = tmp_path / "_src.py"
+        real_file.write_text("pass")
+
+        subdir = tmp_path / "pkg"
+        subdir.mkdir()
+        link = subdir / "alias.py"
+        link.symlink_to(real_file)
+
+        scanner = Scanner(tmp_path)
+        results = scanner.collect()
+        names = {p.name for p, _ in results}
+        assert "alias.py" in names

@@ -310,3 +310,302 @@ class TestEdges:
         import_edges = [e for e in fs.edges if e.edge_type == "IMPORTS"]
         targets = {e.target_name for e in import_edges}
         assert any("Path" in t for t in targets)
+
+
+# ── AST call detection (Python) ───────────────────────────────────────────────
+
+class TestAstCalls:
+    """_ast_calls must use the tree-sitter AST — not regex — so it has no
+    false positives from string literals and no cross-scope leakage."""
+
+    def test_no_false_positives_from_string_literals(self):
+        """A call mentioned inside a string literal must NOT produce a CALLS edge."""
+        source = textwrap.dedent("""\
+            def foo():
+                x = "please call helper() for help"
+        """)
+        fs = _py_symbols(source)
+        call_targets = {e.target_name for e in fs.edges if e.edge_type == "CALLS"}
+        assert "helper" not in call_targets
+
+    def test_no_false_positives_from_comments(self):
+        """A call mentioned in a comment must NOT produce a CALLS edge."""
+        source = textwrap.dedent("""\
+            def foo():
+                # TODO: call cleanup() later
+                pass
+        """)
+        fs = _py_symbols(source)
+        call_targets = {e.target_name for e in fs.edges if e.edge_type == "CALLS"}
+        assert "cleanup" not in call_targets
+
+    def test_nested_calls_not_attributed_to_outer(self):
+        """Calls inside a nested function must only be attributed to that
+        nested function, not to the enclosing one."""
+        source = textwrap.dedent("""\
+            def outer():
+                def inner():
+                    bar()
+                baz()
+        """)
+        fs = _py_symbols(source)
+        calls_by_source: dict[str, set[str]] = {}
+        for e in fs.edges:
+            if e.edge_type == "CALLS":
+                calls_by_source.setdefault(e.source_fqn, set()).add(e.target_name)
+        outer_fqn = "mod.py::outer"
+        inner_fqn = "mod.py::outer.inner"
+        # bar() is inside inner — must NOT appear under outer
+        assert "bar" not in calls_by_source.get(outer_fqn, set())
+        assert "bar" in calls_by_source.get(inner_fqn, set())
+        # baz() is in outer's direct body
+        assert "baz" in calls_by_source.get(outer_fqn, set())
+
+    def test_call_edges_have_confidence_1(self):
+        source = textwrap.dedent("""\
+            def foo():
+                something()
+        """)
+        fs = _py_symbols(source)
+        call_edges = [e for e in fs.edges if e.edge_type == "CALLS"]
+        assert call_edges, "Expected at least one CALLS edge"
+        assert all(e.confidence == 1.0 for e in call_edges)
+
+
+# ── Multi-language smoke tests ────────────────────────────────────────────────
+
+def _symbols_for(source: str, lang: str, rel_path: str | None = None) -> _sym.FileSymbols:
+    """Parse *source* as *lang* and return the extracted FileSymbols."""
+    import tree_sitter
+    from beacon.indexer.symbols import _LANGUAGES, LANG_CONFIGS
+
+    ts_lang = _LANGUAGES[lang]
+    parser = tree_sitter.Parser(ts_lang)
+    src = textwrap.dedent(source).encode()
+    tree = parser.parse(src)
+    if rel_path is None:
+        rel_path = f"test_file.{lang}"
+
+    from beacon.indexer import symbols as sym_mod
+    extractors = {
+        "javascript": lambda: sym_mod._extract_js_ts(tree, src, rel_path, "javascript"),
+        "typescript": lambda: sym_mod._extract_js_ts(tree, src, rel_path, "typescript"),
+        "go":         lambda: sym_mod._extract_go(tree, src, rel_path),
+        "rust":       lambda: sym_mod._extract_generic(tree, src, rel_path, LANG_CONFIGS["rust"]),
+        "java":       lambda: sym_mod._extract_generic(tree, src, rel_path, LANG_CONFIGS["java"]),
+        "cpp":        lambda: sym_mod._extract_c_cpp(tree, src, rel_path, "cpp"),
+        "swift":      lambda: sym_mod._extract_swift(tree, src, rel_path),
+    }
+    return extractors[lang]()
+
+
+class TestJavaScript:
+    def test_arrow_const_gets_name(self):
+        """const add = (a, b) => a + b  →  symbol named 'add', not '<anonymous>'."""
+        fs = _symbols_for("const add = (a, b) => a + b\n", "javascript")
+        names = {s.name for s in fs.symbols}
+        assert "add" in names
+        assert "<anonymous>" not in names
+
+    def test_export_const_is_exported(self):
+        """export const foo = () => {}  →  is_exported=True."""
+        fs = _symbols_for("export const foo = () => {}\n", "javascript")
+        foo = next((s for s in fs.symbols if s.name == "foo"), None)
+        assert foo is not None, "symbol 'foo' not found"
+        assert foo.is_exported is True
+
+    def test_function_expression_const_gets_name(self):
+        """const greet = function() {}  →  symbol named 'greet'."""
+        fs = _symbols_for("const greet = function() {}\n", "javascript")
+        names = {s.name for s in fs.symbols}
+        assert "greet" in names
+
+    def test_import_target_clean(self):
+        """import { x } from './utils'  →  import target is './utils' (no quotes)."""
+        fs = _symbols_for("import { x } from './utils'\n", "javascript")
+        import_edges = [e for e in fs.edges if e.edge_type == "IMPORTS"]
+        targets = {e.target_name for e in import_edges}
+        assert "./utils" in targets
+
+    def test_named_function_still_works(self):
+        """function foo() {}  →  symbol named 'foo' (unchanged)."""
+        fs = _symbols_for("function foo() {}\n", "javascript")
+        names = {s.name for s in fs.symbols}
+        assert "foo" in names
+
+
+class TestTypeScript:
+    def test_interface_extracted(self):
+        """export interface IFoo { bar(): void }  →  kind='interface', is_exported=True."""
+        fs = _symbols_for(
+            "export interface IFoo { bar(): void }\n", "typescript"
+        )
+        iface = next((s for s in fs.symbols if s.name == "IFoo"), None)
+        assert iface is not None, "interface IFoo not found"
+        assert iface.kind == "interface"
+        assert iface.is_exported is True
+
+    def test_type_alias_extracted(self):
+        """export type ID = string  →  kind='type_alias'."""
+        fs = _symbols_for("export type ID = string\n", "typescript")
+        ta = next((s for s in fs.symbols if s.name == "ID"), None)
+        assert ta is not None, "type alias ID not found"
+        assert ta.kind == "type_alias"
+
+    def test_enum_extracted(self):
+        """export enum Color { Red, Green, Blue }  →  kind='enum'."""
+        fs = _symbols_for("export enum Color { Red, Green, Blue }\n", "typescript")
+        en = next((s for s in fs.symbols if s.name == "Color"), None)
+        assert en is not None, "enum Color not found"
+        assert en.kind == "enum"
+
+    def test_ts_arrow_const_gets_name(self):
+        """const fn = (): void => {}  →  symbol named 'fn'."""
+        fs = _symbols_for("const fn_ = (): void => {}\n", "typescript")
+        names = {s.name for s in fs.symbols}
+        assert "fn_" in names
+
+
+class TestGo:
+    def test_receiver_no_pointer_star(self):
+        """func (r *MyType) Foo() {}  →  FQN contains '(MyType).Foo', not '(*MyType)'."""
+        fs = _symbols_for(
+            "package main\nfunc (r *MyType) Foo() {}\n", "go"
+        )
+        fqns = {s.fqn for s in fs.symbols}
+        assert any("(MyType).Foo" in fqn for fqn in fqns), f"FQNs: {fqns}"
+        assert not any("(*MyType)" in fqn for fqn in fqns)
+
+    def test_type_kind_map_struct(self):
+        """type S struct{}  →  kind='struct'."""
+        fs = _symbols_for("package main\ntype S struct{}\n", "go")
+        s = next((sym for sym in fs.symbols if sym.name == "S"), None)
+        assert s is not None
+        assert s.kind == "struct"
+
+    def test_type_kind_map_interface(self):
+        """type I interface{}  →  kind='interface'."""
+        fs = _symbols_for("package main\ntype I interface{}\n", "go")
+        i = next((sym for sym in fs.symbols if sym.name == "I"), None)
+        assert i is not None
+        assert i.kind == "interface"
+
+    def test_type_kind_map_map(self):
+        """type M map[string]int  →  kind='map' (not 'struct')."""
+        fs = _symbols_for("package main\ntype M map[string]int\n", "go")
+        m = next((sym for sym in fs.symbols if sym.name == "M"), None)
+        assert m is not None
+        assert m.kind == "map"
+
+    def test_exported_method_call_captured(self):
+        """func Foo(client Client) { client.DoRequest() }  →  CALLS edge for DoRequest."""
+        source = textwrap.dedent("""\
+            package main
+            func Foo(client Client) {
+                client.DoRequest()
+            }
+        """)
+        fs = _symbols_for(source, "go")
+        call_targets = {e.target_name for e in fs.edges if e.edge_type == "CALLS"}
+        assert "DoRequest" in call_targets
+
+    def test_call_edges_confidence_1(self):
+        source = "package main\nfunc Foo() { something() }\n"
+        fs = _symbols_for(source, "go")
+        calls = [e for e in fs.edges if e.edge_type == "CALLS"]
+        assert all(e.confidence == 1.0 for e in calls)
+
+
+class TestRust:
+    def test_impl_method_fqn(self):
+        """impl MyStruct { fn foo() {} }  →  FQN ends in 'MyStruct.foo'."""
+        source = textwrap.dedent("""\
+            impl MyStruct {
+                fn foo() {}
+            }
+        """)
+        fs = _symbols_for(source, "rust")
+        fqns = {s.fqn for s in fs.symbols}
+        assert any("MyStruct" in fqn and "foo" in fqn for fqn in fqns), f"FQNs: {fqns}"
+
+    def test_use_import_clean(self):
+        """use std::collections::HashMap;  →  target is the scoped path, not the full statement."""
+        fs = _symbols_for("use std::collections::HashMap;\n", "rust")
+        import_edges = [e for e in fs.edges if e.edge_type == "IMPORTS"]
+        assert import_edges, "Expected at least one IMPORTS edge"
+        for edge in import_edges:
+            assert not edge.target_name.startswith("use "), (
+                f"Import target still includes 'use' keyword: {edge.target_name!r}"
+            )
+
+    def test_pub_fn_is_exported(self):
+        """pub fn open() {}  →  is_exported=True."""
+        fs = _symbols_for("pub fn open() {}\n", "rust")
+        sym = next((s for s in fs.symbols if s.name == "open"), None)
+        assert sym is not None
+        assert sym.is_exported is True
+
+
+class TestJava:
+    def test_import_clean(self):
+        """import java.util.List;  →  target doesn't include 'import' or ';'."""
+        fs = _symbols_for("import java.util.List;\n", "java")
+        import_edges = [e for e in fs.edges if e.edge_type == "IMPORTS"]
+        assert import_edges, "Expected at least one IMPORTS edge"
+        for edge in import_edges:
+            assert not edge.target_name.startswith("import "), (
+                f"Import target still includes 'import' keyword: {edge.target_name!r}"
+            )
+            assert not edge.target_name.endswith(";"), (
+                f"Import target still includes trailing semicolon: {edge.target_name!r}"
+            )
+
+
+class TestCpp:
+    def test_class_symbol_extracted(self):
+        """class Foo { public: void bar() {} }  →  class symbol 'Foo'."""
+        source = textwrap.dedent("""\
+            class Foo {
+            public:
+                void bar() {}
+            };
+        """)
+        fs = _symbols_for(source, "cpp")
+        names = {s.name for s in fs.symbols}
+        assert "Foo" in names
+
+    def test_method_inside_class(self):
+        """class Foo { void bar() {} }  →  symbol 'bar' with kind='method'."""
+        source = textwrap.dedent("""\
+            class Foo {
+                void bar() {}
+            };
+        """)
+        fs = _symbols_for(source, "cpp")
+        bar = next((s for s in fs.symbols if s.name == "bar"), None)
+        assert bar is not None, "method 'bar' not found"
+        assert bar.kind == "method"
+
+    def test_this_arrow_call_captured(self):
+        """this->bar() inside a method must produce a CALLS edge for 'bar'."""
+        source = textwrap.dedent("""\
+            class Foo {
+                void run() { this->bar(); }
+                void bar() {}
+            };
+        """)
+        fs = _symbols_for(source, "cpp")
+        call_targets = {e.target_name for e in fs.edges if e.edge_type == "CALLS"}
+        assert "bar" in call_targets
+
+
+class TestMissingGrammar:
+    def test_missing_grammar_raises(self):
+        """extract() with an unknown language must raise RuntimeError."""
+        from pathlib import Path
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            f = Path(tmpdir) / "foo.unknown"
+            f.write_text("hello world")
+            with pytest.raises(RuntimeError, match="grammar"):
+                _sym.extract(f, "unknown_lang_xyz", Path(tmpdir))
