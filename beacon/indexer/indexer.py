@@ -215,6 +215,16 @@ def index(
     files = scanner.scan(root)
     print(f"Scanning {len(files)} files in {root}")
 
+    # Prune files that no longer exist on disk
+    current_rel_paths = {str(p.relative_to(root)) for p, _ in files}
+    cached_paths = [r[0] for r in conn.execute("SELECT file_path FROM file_cache").fetchall()]
+    deleted = [rel for rel in cached_paths if rel not in current_rel_paths]
+    for rel in deleted:
+        _delete_file_nodes(conn, rel)
+        conn.execute("DELETE FROM file_cache WHERE file_path=?", (rel,))
+    if deleted:
+        print(f"Pruned {len(deleted)} deleted files from index")
+
     changed_node_ids: list[int] = []
     now = datetime.now(timezone.utc).isoformat()
     all_edges: list[symbols.CallEdge] = []

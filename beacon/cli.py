@@ -18,6 +18,18 @@ import sys
 from pathlib import Path
 
 
+def _find_project_root(start: Path | None = None) -> Path:
+    """
+    Walk up from *start* (default: cwd) to find the nearest git repository root.
+    Falls back to *start* if no .git directory is found.
+    """
+    here = (start or Path(os.getcwd())).resolve()
+    for candidate in [here, *here.parents]:
+        if (candidate / ".git").exists():
+            return candidate
+    return here
+
+
 # ── Rich helpers ──────────────────────────────────────────────────────────────
 
 def _make_console():
@@ -109,7 +121,7 @@ def cmd_index(args):
     console = Console(highlight=False)
     _header(console)
 
-    root = Path(args.dir or os.getcwd()).resolve()
+    root = Path(args.dir).resolve() if args.dir else _find_project_root()
     db_path = Path(args.db) if args.db else root / ".beacon" / "index.db"
 
     console.print(f"  [dim]root[/dim]  [bold]{root}[/bold]")
@@ -1027,7 +1039,7 @@ def cmd_ask(args):
 
     console = Console(highlight=False)
 
-    db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
+    db = args.db or str(_find_project_root() / ".beacon" / "index.db")
     db_path = Path(db).resolve()
     # Root is two levels up from .beacon/index.db
     root = db_path.parent.parent if db_path.parent.name == ".beacon" else db_path.parent
@@ -1102,7 +1114,7 @@ def cmd_search(args):
     from beacon.search.query import search
 
     console = Console(highlight=False)
-    db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
+    db = args.db or str(_find_project_root() / ".beacon" / "index.db")
     conn = open_db(db)
     results = search(conn, args.query, limit=args.limit)
 
@@ -1135,7 +1147,7 @@ def cmd_search(args):
 def cmd_capsule(args):
     from beacon.schema import open_db
     from beacon.search.capsule import get_capsule, render_capsule
-    db = args.db or str(Path(os.getcwd()) / ".beacon" / "index.db")
+    db = args.db or str(_find_project_root() / ".beacon" / "index.db")
     conn = open_db(db)
     cap = get_capsule(conn, args.query, max_tokens=args.max_tokens)
     print(render_capsule(cap))
@@ -1157,7 +1169,7 @@ def cmd_benchmark(args):
     console = Console(highlight=False)
     _header(console)
 
-    root = str(Path(args.root or os.getcwd()).resolve())
+    root = str(Path(args.root).resolve() if args.root else _find_project_root())
     output_path = Path(args.output)
 
     console.print(f"  [dim]root  [/dim] [bold]{root}[/bold]")
@@ -1264,7 +1276,7 @@ def cmd_benchmark(args):
 
 def cmd_mcp(args):
     from beacon.mcp import McpServer
-    workspace = Path(args.workspace or os.getcwd()).resolve()
+    workspace = Path(args.workspace).resolve() if args.workspace else _find_project_root()
     db = Path(args.db) if args.db else None
     McpServer(workspace=workspace, db_path=db).run()
 
@@ -1273,14 +1285,14 @@ def cmd_mcp(args):
 
 GUARD_SCRIPT = """\
 #!/bin/bash
-# beacon-guard: redirect Grep/Glob/Read to Beacon MCP tools when index is ready.
+# beacon-guard: redirect Grep/Glob to Beacon MCP tools when index is ready.
 # Checks for .beacon/index.db and .beacon/healthy marker written by `beacon index`.
 BEACON_DIR="${CLAUDE_PROJECT_DIR:-.}/.beacon"
 HEALTHY="$BEACON_DIR/healthy"
 DB="$BEACON_DIR/index.db"
 
 if [ -f "$DB" ] && [ -f "$HEALTHY" ]; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"beacon index is ready. Use run_pipeline or get_context_capsule instead of Grep/Glob/Read — it searches semantically and saves tokens."}}'
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"beacon index is ready. Use run_pipeline or get_context_capsule instead of Grep/Glob — it searches semantically and saves tokens."}}'
 else
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"beacon index not ready, allowing direct search fallback."}}'
 fi
@@ -1290,7 +1302,7 @@ exit 0
 HOOK_CONFIG = {
     "PreToolUse": [
         {
-            "matcher": "Grep|Glob|Read",
+            "matcher": "Grep|Glob",
             "hooks": [
                 {
                     "type": "command",
@@ -1310,7 +1322,7 @@ def cmd_setup(args):
     console = Console(highlight=False)
     _header(console)
 
-    workspace = Path(args.workspace or os.getcwd()).resolve()
+    workspace = Path(args.workspace).resolve() if args.workspace else _find_project_root()
     python = sys.executable
     beacon_dir = str(Path(__file__).resolve().parent.parent)
     db_path = workspace / ".beacon" / "index.db"
@@ -1323,12 +1335,7 @@ def cmd_setup(args):
     guard.chmod(0o755)
     console.print(f"  [green]✓[/green] Hook script  [dim]{guard}[/dim]")
 
-    # ── 2. Hooks + MCP server → project .claude/settings.json ───────────────
-    #
-    # MCP config goes in the PROJECT settings (not ~/.claude.json) so that
-    # each project gets its own beacon instance pointing at its own index.db.
-    # Writing to the global user config caused the last-setup project's index
-    # to be used for ALL projects.
+    # ── 2. Hooks → project .claude/settings.json ────────────────────────────
     settings_path = workspace / ".claude" / "settings.json"
     settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
 
@@ -1341,18 +1348,28 @@ def cmd_setup(args):
     existing.extend(HOOK_CONFIG["PreToolUse"])
     hooks["PreToolUse"] = existing
 
-    # MCP server (project-scoped)
-    settings.setdefault("mcpServers", {})["beacon"] = {
+    # Remove any stale mcpServers from .claude/settings.json (wrong location)
+    settings.pop("mcpServers", None)
+
+    settings_path.write_text(json.dumps(settings, indent=2))
+    console.print(f"  [green]✓[/green] Hooks        [dim]{settings_path}[/dim]")
+
+    # ── 2b. MCP server → project .mcp.json ────────────────────────────────
+    #
+    # Claude Code reads project-level MCP servers from .mcp.json at the
+    # project root (not from .claude/settings.json).  Each project gets its
+    # own beacon instance pointing at its own index.db.
+    mcp_path = workspace / ".mcp.json"
+    mcp_cfg = json.loads(mcp_path.read_text()) if mcp_path.exists() else {}
+    mcp_cfg.setdefault("mcpServers", {})["beacon"] = {
         "command": python,
         "args": ["-m", "beacon.mcp",
                  "--workspace", str(workspace),
                  "--db", str(db_path)],
         "env": {"PYTHONPATH": beacon_dir},
     }
-
-    settings_path.write_text(json.dumps(settings, indent=2))
-    console.print(f"  [green]✓[/green] Hooks        [dim]{settings_path}[/dim]")
-    console.print(f"  [green]✓[/green] MCP server   [dim]{settings_path}[/dim]  [dim](project scope)[/dim]")
+    mcp_path.write_text(json.dumps(mcp_cfg, indent=2))
+    console.print(f"  [green]✓[/green] MCP server   [dim]{mcp_path}[/dim]  [dim](project scope)[/dim]")
 
     # ── 3. Remove any stale global entry from ~/.claude.json ─────────────────
     user_cfg_path = Path.home() / ".claude.json"
@@ -1362,17 +1379,21 @@ def cmd_setup(args):
             user_cfg_path.write_text(json.dumps(user_cfg, indent=2))
             console.print(f"  [green]✓[/green] Removed stale global beacon entry from [dim]{user_cfg_path}[/dim]")
 
-    # ── 4. Add .beacon/ to .gitignore ─────────────────────────────────────────
+    # ── 4. Add .beacon/ and .mcp.json to .gitignore ─────────────────────────
     gitignore = workspace / ".gitignore"
-    entry = ".beacon/\n"
+    ignore_entries = [".beacon/", ".mcp.json"]
     if gitignore.exists():
         content = gitignore.read_text()
-        if ".beacon" not in content:
-            gitignore.write_text(content.rstrip("\n") + "\n" + entry)
-            console.print(f"  [green]✓[/green] .gitignore   [dim]added .beacon/[/dim]")
     else:
-        gitignore.write_text(entry)
-        console.print(f"  [green]✓[/green] .gitignore   [dim]created[/dim]")
+        content = ""
+    added = []
+    for entry in ignore_entries:
+        if entry not in content:
+            content = content.rstrip("\n") + "\n" + entry + "\n"
+            added.append(entry)
+    if added:
+        gitignore.write_text(content)
+        console.print(f"  [green]✓[/green] .gitignore   [dim]added {', '.join(added)}[/dim]")
 
     console.print()
     console.print(Panel(
@@ -1388,7 +1409,7 @@ def cmd_setup(args):
 # ── show-config ───────────────────────────────────────────────────────────────
 
 def cmd_show_config(args):
-    workspace = str(Path(args.workspace or os.getcwd()).resolve())
+    workspace = str(Path(args.workspace).resolve() if args.workspace else _find_project_root())
     python = sys.executable
     beacon_dir = str(Path(__file__).resolve().parent.parent)
     db = str(Path(workspace) / ".beacon" / "index.db")
@@ -1417,7 +1438,7 @@ def cmd_logs(args):
     from rich.text import Text
 
     console = Console(highlight=False)
-    root = Path(args.dir or os.getcwd()).resolve()
+    root = Path(args.dir).resolve() if args.dir else _find_project_root()
     log_dir = root / ".beacon" / "logs"
 
     if not log_dir.exists():
