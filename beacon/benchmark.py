@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-# ── Query set ────────────────────────────────────────────────────────────────
+# ── Query sets ───────────────────────────────────────────────────────────────
 
+# Django query set — use with beacon run-benchmark --root ~/repos/django
 QUERIES = [
     {
         "id": 1,
@@ -94,6 +95,95 @@ QUERIES = [
 ]
 
 
+# Beacon-code query set — used automatically when run against this repo
+BEACON_CODE_QUERIES = [
+    {
+        "id": 1,
+        "query": "Where is the FTS5 search query string built?",
+        "type": "keyword_easy",
+        "expected_file_hint": "beacon/search/query.py",
+        "grep_strategy": ["_fts5_query", "FTS5", "fts5"],
+    },
+    {
+        "id": 2,
+        "query": "How does beacon limit results to a token budget?",
+        "type": "semantic_paraphrase",
+        "expected_file_hint": "beacon/search/capsule.py",
+        "grep_strategy": ["max_tokens", "_approx_tokens", "token_budget"],
+    },
+    {
+        "id": 3,
+        "query": "What happens when a source file changes and needs reindexing?",
+        "type": "multi_hop_call_chain",
+        "expected_file_hint": "beacon/indexer/indexer.py",
+        "grep_strategy": ["check_and_reindex", "_hash_file", "reindex"],
+    },
+    {
+        "id": 4,
+        "query": "Where is the neural sentence embedding model loaded?",
+        "type": "cross_subsystem",
+        "expected_file_hint": "beacon/indexer/embedder.py",
+        "grep_strategy": ["SentenceEncoder", "SentenceTransformer", "sentence_transformers"],
+    },
+    {
+        "id": 5,
+        "query": "What performs BFS graph expansion to find callers and callees?",
+        "type": "graph_traversal_callers",
+        "expected_file_hint": "beacon/search/capsule.py",
+        "grep_strategy": ["_expand_neighbors", "_capped_neighbors", "CALLS"],
+    },
+    {
+        "id": 6,
+        "query": "How does beacon boost exported symbols over test code in ranking?",
+        "type": "semantic_no_obvious_keyword",
+        "expected_file_hint": "beacon/search/query.py",
+        "grep_strategy": ["is_exported", "is_test", "_graph_scores"],
+    },
+    {
+        "id": 7,
+        "query": "What runs when the MCP run_pipeline tool is called?",
+        "type": "execution_path",
+        "expected_file_hint": "beacon/mcp.py",
+        "grep_strategy": ["handle_run_pipeline", "run_pipeline", "json_rpc"],
+    },
+    {
+        "id": 8,
+        "query": "Where is tree-sitter configured per programming language?",
+        "type": "needle_in_haystack",
+        "expected_file_hint": "beacon/lang_map.py",
+        "grep_strategy": ["tree_sitter", "get_language", "LANG_MAP"],
+    },
+    {
+        "id": 9,
+        "query": "What imports from the capsule module?",
+        "type": "import_graph_query",
+        "expected_file_hint": "any file importing capsule",
+        "grep_strategy": [
+            "from beacon.search.capsule import",
+            "from beacon.search import capsule",
+            "search.capsule",
+        ],
+    },
+    {
+        "id": 10,
+        "query": "How does session deduplication prevent returning the same symbols twice?",
+        "type": "multi_module_feature",
+        "expected_file_hint": "beacon/search/capsule.py",
+        "grep_strategy": ["exclude_fqns", "_sent_fqns", "session.*dedup"],
+    },
+]
+
+
+def _select_queries(root: str) -> list[dict]:
+    """Pick the right query set based on what's indexed at *root*."""
+    r = Path(root)
+    if (r / "django" / "__init__.py").exists():
+        return QUERIES
+    if (r / "beacon" / "mcp.py").exists():
+        return BEACON_CODE_QUERIES
+    return QUERIES  # default to Django set for external codebases
+
+
 # ── Token counting ────────────────────────────────────────────────────────────
 
 def count_tokens_approx(text: str) -> int:
@@ -130,24 +220,34 @@ def beacon_capsule_direct(query: str, root: str, max_tokens: int = 8000) -> dict
 
 # ── Baseline path ─────────────────────────────────────────────────────────────
 
+_GREP_EXCLUDE_DIRS = [
+    ".venv", "venv", "__pycache__", ".git", "node_modules", "build", "dist",
+    ".tox", ".eggs", "*.egg-info",
+]
+
+
 def grep_search(patterns: list[str], root: str) -> dict[str, Any]:
     """Simulate what an AI agent does without Beacon:
     1. grep -rl to find candidate files
     2. Read the top 3 matching files in full
 
     Uses /usr/bin/grep directly (rg is wrapped by Claude Code on this machine).
+    Excludes virtualenvs and build artifacts (mirrors what rg/.gitignore would do).
     Total tokens = grep listing output + file contents read.
     """
     grep_bin = "/usr/bin/grep"
+    exclude_args = []
+    for d in _GREP_EXCLUDE_DIRS:
+        exclude_args += [f"--exclude-dir={d}"]
 
     total_tokens = 0
     steps = []
-    all_candidate_files: list[str] = []
+    file_hit_count: dict[str, int] = {}
 
     for pattern in patterns:
         try:
             result = subprocess.run(
-                [grep_bin, "-rl", "--include=*.py", pattern, "."],
+                [grep_bin, "-rl", "--include=*.py"] + exclude_args + [pattern, "."],
                 capture_output=True, text=True, timeout=30,
                 cwd=root,
             )
@@ -160,15 +260,18 @@ def grep_search(patterns: list[str], root: str) -> dict[str, Any]:
                 "grep_output_tokens": grep_tokens,
             })
             for f in matching_files:
-                if f not in all_candidate_files:
-                    all_candidate_files.append(f)
+                file_hit_count[f] = file_hit_count.get(f, 0) + 1
         except Exception as e:
             steps.append({"pattern": pattern, "error": str(e)})
+
+    # Rank files by how many patterns matched — most-mentioned = most likely relevant.
+    # This mirrors what an agent would do: pick the files grep mentions most often.
+    ranked_files = sorted(file_hit_count, key=lambda f: -file_hit_count[f])
 
     # Simulate reading the top 3 unique matching files fully
     files_read_tokens = 0
     files_read = []
-    for fp in all_candidate_files[:3]:
+    for fp in ranked_files[:3]:
         try:
             content = (Path(root) / fp).read_text(encoding="utf-8", errors="replace")
             tok = count_tokens_approx(content)
@@ -239,9 +342,10 @@ def run_benchmark(
           savings_ratio, pct_saved, beacon_recall, baseline_recall,
           beacon_elapsed_s, beacon_detail, baseline_detail
     """
+    queries = _select_queries(root)
     results = []
 
-    for q in QUERIES:
+    for q in queries:
         beacon = beacon_capsule_direct(q["query"], root, max_tokens=max_tokens)
         baseline = grep_search(q["grep_strategy"], root)
 

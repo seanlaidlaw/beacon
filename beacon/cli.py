@@ -1164,17 +1164,19 @@ def cmd_benchmark(args):
     from rich import box
     from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-    from beacon.benchmark import run_benchmark, summary_stats, QUERIES
+    from beacon.benchmark import run_benchmark, summary_stats, _select_queries
 
     console = Console(highlight=False)
     _header(console)
 
     root = str(Path(args.root).resolve() if args.root else _find_project_root())
     output_path = Path(args.output)
+    selected_queries = _select_queries(root)
+    query_set_name = "beacon-code" if any(q["grep_strategy"][0] == "_fts5_query" for q in selected_queries) else "django"
 
     console.print(f"  [dim]root  [/dim] [bold]{root}[/bold]")
     console.print(f"  [dim]output[/dim] [dim]{output_path}[/dim]")
-    console.print(f"  [dim]queries[/dim] [bold]{len(QUERIES)}[/bold]")
+    console.print(f"  [dim]queries[/dim] [bold]{len(selected_queries)}[/bold] [dim]({query_set_name})[/dim]")
     console.print()
 
     results = []
@@ -1186,7 +1188,7 @@ def cmd_benchmark(args):
         console=console,
         transient=False,
     ) as progress:
-        task = progress.add_task("Running queries…", total=len(QUERIES))
+        task = progress.add_task("Running queries…", total=len(selected_queries))
 
         def on_result(r):
             results.append(r)
@@ -1285,17 +1287,29 @@ def cmd_mcp(args):
 
 GUARD_SCRIPT = """\
 #!/bin/bash
-# beacon-guard: redirect Grep/Glob to Beacon MCP tools when index is ready.
-# Checks for .beacon/index.db and .beacon/healthy marker written by `beacon index`.
+# beacon-guard: redirect Grep/Glob to Beacon MCP tools when the index is ready
+# AND a live beacon MCP server is attached to it.
+#
+# A healthy index on disk is not enough — if the beacon server is disabled or
+# crashed, denying Grep just strands the agent with whole-file Reads. The MCP
+# server writes .beacon/heartbeat at startup and refreshes it every 60s, so a
+# heartbeat younger than 5 minutes means a server is actually answering calls.
 BEACON_DIR="${CLAUDE_PROJECT_DIR:-.}/.beacon"
 HEALTHY="$BEACON_DIR/healthy"
 DB="$BEACON_DIR/index.db"
+HEARTBEAT="$BEACON_DIR/heartbeat"
 
-if [ -f "$DB" ] && [ -f "$HEALTHY" ]; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"beacon index is ready. Use run_pipeline or get_context_capsule instead of Grep/Glob — it searches semantically and saves tokens."}}'
-else
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"beacon index not ready, allowing direct search fallback."}}'
-fi
+allow() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}' "$1"
+  exit 0
+}
+
+[ -f "$DB" ] && [ -f "$HEALTHY" ] || allow "beacon index not ready, allowing direct search fallback."
+
+# Heartbeat must exist and be fresher than 5 minutes (find -mmin -5).
+[ -n "$(find "$HEARTBEAT" -mmin -5 2>/dev/null)" ] || allow "beacon MCP server not running (stale heartbeat), allowing direct search fallback."
+
+printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"beacon index is ready and the server is live. Use mcp__beacon__run_pipeline (or mcp__beacon__get_context_capsule) instead of Grep/Glob — it returns ranked, budget-bounded code context including function bodies, and saves tokens. For natural-language queries also pass hypothetical_code."}}'
 exit 0
 """
 

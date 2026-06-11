@@ -6,12 +6,12 @@ Beacon indexes your codebase with semantic understanding, enabling powerful sear
 
 ## Features
 
-- **Semantic Search**: Find code by meaning, not just keywords
-- **Context Capsules**: Generate concise, relevant context windows for AI agents
+- **Semantic Search**: Find code by meaning, not just keywords. Dense embeddings score the *entire* corpus (not just keyword candidates), so paraphrased queries surface code that shares no words with the question. Instruction-tuned embedding models (e.g. jina-code-embeddings) automatically get their query/passage prompts applied.
+- **Context Capsules**: Generate concise, relevant context windows for AI agents — seed matches include the function body preview, so the capsule contains the answer rather than a pointer to it
 - **Call Graph & Impact Analysis**: Visualize dependencies and understand blast radius
 - **Incremental Indexing**: Automatically re‑index only changed files
 - **Multi‑Language Support**: Python, JavaScript/TypeScript, Go, Rust, Java, C/C++, Bash, Lua, Swift, R, Markdown, and more
-- **MCP Server**: Built‑in Model Context Protocol server for AI coding assistants
+- **MCP Server**: Built‑in Model Context Protocol server for AI coding assistants. Writes a `.beacon/heartbeat` file (refreshed every 60s) so the `beacon setup` Grep/Glob guard hook only redirects agents to Beacon when a live server is actually attached; preloads the embedding model in the background so the first query doesn't pay model-load latency
 
 ## Benchmark: Token Savings vs. Grep
 

@@ -22,6 +22,7 @@ Final score = W_BM25*bm25 + W_DENSE*dense + W_GRAPH*graph
 import json
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -30,6 +31,12 @@ import numpy as np
 W_BM25  = 0.45
 W_DENSE = 0.40
 W_GRAPH = 0.15
+
+# Minimum cosine for a node to enter the candidate pool on dense evidence
+# alone (no keyword match). Measured with jina-code-embeddings-1.5b + task
+# prompts: true paraphrase matches score 0.53-0.73, gibberish/unrelated
+# queries top out around 0.26. Keeps nonsense queries returning empty.
+MIN_DENSE_CANDIDATE = 0.35
 
 # BM25 FTS5 column weights — positional, must match FTS5 column order:
 # nodes_fts columns: name, fqn, docstring, signature, body_preview
@@ -49,6 +56,7 @@ class SearchResult:
     score: float
     score_breakdown: dict = field(default_factory=dict)
     reason: str = ""
+    body_preview: str = ""
 
 
 # ── FTS5 query sanitisation ───────────────────────────────────────────────────
@@ -67,7 +75,12 @@ def _fts5_query(query: str) -> str:
     """
     tokens = re.findall(r'[A-Za-z][A-Za-z0-9_]*', query)
     _STOP = {'the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was',
-             'not', 'but', 'all', 'can', 'its', 'use', 'via', 'per', 'than', 'into'}
+             'not', 'but', 'all', 'can', 'its', 'use', 'via', 'per', 'than', 'into',
+             'how', 'does', 'did', 'doing', 'done', 'where', 'when', 'why', 'what',
+             'which', 'who', 'whom', 'whose', 'should', 'would', 'could', 'will',
+             'shall', 'may', 'might', 'must', 'been', 'being', 'has', 'have', 'had',
+             'were', 'they', 'them', 'their', 'there', 'here', 'then', 'these',
+             'those', 'some', 'any', 'each', 'our', 'your', 'you'}
     tokens = [t for t in tokens if len(t) >= 3 and t.lower() not in _STOP]
     if not tokens:
         return query[:50]
@@ -119,48 +132,118 @@ def _fallback_like_search(conn: sqlite3.Connection, query: str, limit: int) -> l
 
 # ── Layer 2a: Dense cosine ────────────────────────────────────────────────────
 
+# In-memory cache of the stacked embedding matrix for small corpora.
+# Key: (db_path, row_count, max_updated_at) → (ids ndarray, matrix ndarray).
+# Invalidates automatically when nodes are re-embedded (updated_at changes).
+_DENSE_CACHE: dict[tuple, tuple[np.ndarray, np.ndarray]] = {}
+_DENSE_CACHE_MAX_ROWS = 50_000   # ~300 MB at 1536 dims — beyond this, scan in chunks
+_DENSE_SCAN_CHUNK = 10_000
+
+
+def _dense_query_vec(query: str) -> np.ndarray | None:
+    """Encode the query with the dense model (instruction prompt applied)."""
+    try:
+        from beacon.indexer.embedder import get_encoder
+        encoder = get_encoder()
+        q_vecs = encoder.encode([query], kind="query")
+        if q_vecs is None:
+            print(f"[beacon] dense encode failed: {encoder.error}", file=sys.stderr, flush=True)
+            return None
+        return q_vecs[0]
+    except Exception as e:
+        print(f"[beacon] dense encoder unavailable: {e}", file=sys.stderr, flush=True)
+        return None
+
+
+def _dense_cache_key(conn: sqlite3.Connection) -> tuple | None:
+    row = conn.execute(
+        "SELECT COUNT(*), MAX(updated_at) FROM node_embeddings_dense"
+    ).fetchone()
+    if not row or not row[0]:
+        return None
+    db_path = conn.execute("PRAGMA database_list").fetchone()[2]
+    return (db_path, row[0], row[1])
+
+
+def _dense_all_scores(conn: sqlite3.Connection, query: str) -> dict[int, float]:
+    """
+    Cosine similarity of *query* against EVERY stored dense embedding.
+
+    Unlike the old candidate-restricted scoring, this lets the semantic layer
+    surface nodes that keyword search missed entirely. Vectors are
+    L2-normalised at index time, so dot product = cosine.
+
+    Small corpora (≤ _DENSE_CACHE_MAX_ROWS) are kept as one matrix in process
+    memory; larger ones are scanned in chunks per query.
+    """
+    key = _dense_cache_key(conn)
+    if key is None:
+        return {}                       # no dense embeddings stored
+    q_vec = _dense_query_vec(query)
+    if q_vec is None:
+        return {}
+    dim = q_vec.shape[0]
+    n_rows = key[1]
+
+    if n_rows <= _DENSE_CACHE_MAX_ROWS:
+        cached = _DENSE_CACHE.get(key)
+        if cached is None:
+            rows = conn.execute(
+                "SELECT node_id, vector FROM node_embeddings_dense"
+            ).fetchall()
+            good = [(r[0], r[1]) for r in rows if len(r[1]) == dim * 4]
+            if not good:
+                print(
+                    f"[beacon] dense dim mismatch: stored vectors do not match "
+                    f"query dim {dim} — re-run indexing with the current model",
+                    file=sys.stderr, flush=True,
+                )
+                return {}
+            ids = np.array([g[0] for g in good], dtype=np.int64)
+            mat = np.frombuffer(b"".join(g[1] for g in good), dtype=np.float32)
+            mat = mat.reshape(len(good), dim)
+            _DENSE_CACHE.clear()        # one corpus per process is the norm
+            _DENSE_CACHE[key] = (ids, mat)
+            cached = (ids, mat)
+        ids, mat = cached
+        sims = mat @ q_vec
+        return {int(nid): float(s) for nid, s in zip(ids, sims)}
+
+    # Large corpus: chunked scan, keyset pagination on node_id
+    scores: dict[int, float] = {}
+    last_id = -1
+    while True:
+        rows = conn.execute(
+            "SELECT node_id, vector FROM node_embeddings_dense "
+            "WHERE node_id > ? ORDER BY node_id LIMIT ?",
+            (last_id, _DENSE_SCAN_CHUNK),
+        ).fetchall()
+        if not rows:
+            break
+        last_id = rows[-1][0]
+        good = [(r[0], r[1]) for r in rows if len(r[1]) == dim * 4]
+        if not good:
+            continue
+        mat = np.frombuffer(b"".join(g[1] for g in good), dtype=np.float32)
+        mat = mat.reshape(len(good), dim)
+        sims = mat @ q_vec
+        for (nid, _), s in zip(good, sims):
+            scores[int(nid)] = float(s)
+    return scores
+
+
 def _dense_scores(
     conn: sqlite3.Connection,
     query: str,
     node_ids: list[int],
 ) -> dict[int, float]:
-    """
-    Cosine similarity using stored dense neural embeddings.
-    Loads the encoder singleton (cached per process), encodes the query,
-    fetches stored float32 blobs, computes dot product (vectors are L2-normalised).
-    Returns {} if dense embeddings not available.
-    """
+    """Candidate-restricted dense scores (kept for callers that have a fixed
+    candidate set). Delegates to the full-corpus scan and filters."""
     if not node_ids:
         return {}
-
-    # Check if any dense embeddings exist
-    ph = ",".join("?" * len(node_ids))
-    rows = conn.execute(
-        f"SELECT node_id, vector FROM node_embeddings_dense WHERE node_id IN ({ph})",
-        node_ids,
-    ).fetchall()
-    if not rows:
-        return {}
-
-    try:
-        from beacon.indexer.embedder import get_encoder
-        encoder = get_encoder()
-        q_vecs = encoder.encode([query])
-        if q_vecs is None:
-            return {}
-        q_vec = q_vecs[0]  # (dim,)
-
-        scores: dict[int, float] = {}
-        for row in rows:
-            nid = row[0]
-            vec = np.frombuffer(row[1], dtype=np.float32)
-            if vec.shape != q_vec.shape:
-                continue
-            # Both are L2-normalised at index time → dot product = cosine
-            scores[nid] = float(np.dot(q_vec, vec))
-        return scores
-    except Exception:
-        return {}
+    all_scores = _dense_all_scores(conn, query)
+    wanted = set(node_ids)
+    return {nid: s for nid, s in all_scores.items() if nid in wanted}
 
 
 # ── Layer 2b: TF-IDF cosine fallback ─────────────────────────────────────────
@@ -362,15 +445,30 @@ def search(
             if row and row[0] not in bm25_dict:
                 bm25_dict[row[0]] = 3.0  # baseline anchor score
 
+    # Layer 2: Dense (preferred) or TF-IDF fallback.
+    # Use HyDE snippet if provided — code→code similarity is much stronger
+    # than NL→code in the embedding space.
+    # Dense scores cover the WHOLE corpus, and the top dense hits are unioned
+    # into the candidate pool so the semantic layer can surface nodes that
+    # keyword search missed entirely.
+    dense_input = dense_query if dense_query else query
+    semantic_dict = _dense_all_scores(conn, dense_input)
+    # Dense-only candidates are unioned in for natural-language-ish queries
+    # (≥2 word tokens). A single-identifier query is a keyword lookup: if
+    # BM25 found nothing, the symbol doesn't exist — semantic nearest
+    # neighbours of a nonexistent identifier are noise, not recall.
+    nl_like = len(re.findall(r'[A-Za-z][A-Za-z0-9_]*', query)) >= 2
+    if semantic_dict and nl_like:
+        top_dense = sorted(semantic_dict.items(), key=lambda x: x[1], reverse=True)
+        for nid, s in top_dense[:limit * 3]:
+            if s < MIN_DENSE_CANDIDATE:
+                break   # sorted descending — everything below is weaker
+            bm25_dict.setdefault(nid, 0.0)
+
     all_ids = list(bm25_dict.keys())
     if not all_ids:
         return []
 
-    # Layer 2: Dense (preferred) or TF-IDF fallback.
-    # Use HyDE snippet if provided — code→code similarity is much stronger
-    # than NL→code in the embedding space.
-    dense_input = dense_query if dense_query else query
-    semantic_dict = _dense_scores(conn, dense_input, all_ids)
     if not semantic_dict:
         semantic_dict = _tfidf_scores(conn, dense_input, all_ids)
 
@@ -380,6 +478,20 @@ def search(
     # Normalise BM25 to [0, 1]
     max_bm25 = max(bm25_dict.values(), default=1.0) or 1.0
 
+    # Penalty flags: demote test nodes and (mildly) unexported symbols for
+    # non-test queries — applied BEFORE ranking so the right candidates make
+    # the cut, not just get re-sorted afterwards.
+    query_is_test = any(t in query.lower() for t in ("test", "spec", "fixture", "mock"))
+    flags: dict[int, tuple[bool, bool]] = {}
+    if not query_is_test:
+        ph = ",".join("?" * len(all_ids))
+        flags = {
+            row[0]: (bool(row[1]), bool(row[2]))
+            for row in conn.execute(
+                f"SELECT id, is_test, is_exported FROM nodes WHERE id IN ({ph})", all_ids
+            ).fetchall()
+        }
+
     # Fuse
     fused: list[tuple[int, float, dict]] = []
     for nid in all_ids:
@@ -387,6 +499,11 @@ def search(
         s = semantic_dict.get(nid, 0.0)
         g = graph_dict.get(nid, 0.0)
         total = W_BM25 * b + W_DENSE * s + W_GRAPH * g
+        is_test, is_exported = flags.get(nid, (False, True))
+        if is_test:
+            total *= 0.3        # strongly demote test symbols
+        elif not is_exported:
+            total *= 0.85       # mildly demote private symbols
         fused.append((nid, total, {"bm25": round(b, 3), "semantic": round(s, 3), "graph": round(g, 3)}))
 
     fused.sort(key=lambda x: x[1], reverse=True)
@@ -397,7 +514,7 @@ def search(
     node_rows = {
         r["id"]: r
         for r in conn.execute(
-            f"SELECT id, name, fqn, file_path, kind, start_line, signature, docstring "
+            f"SELECT id, name, fqn, file_path, kind, start_line, signature, docstring, body_preview "
             f"FROM nodes WHERE id IN ({ph})",
             top_ids,
         ).fetchall()
@@ -422,6 +539,7 @@ def search(
             score=round(score, 4),
             score_breakdown=breakdown,
             reason=_make_reason(breakdown),
+            body_preview=row["body_preview"] or "",
         ))
         if len(results) >= limit:
             break

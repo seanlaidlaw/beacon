@@ -13,6 +13,7 @@ Start with:
 import json
 import os
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -266,6 +267,49 @@ class McpServer:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._log_path = log_dir / f"mcp_{ts}_{self.session_id[:8]}.jsonl"
         self._log_fh = open(self._log_path, "a", buffering=1)  # line-buffered
+        # Heartbeat file — proves to external tooling (e.g. the beacon-guard
+        # PreToolUse hook) that a live server is attached to this index.
+        # Touched at startup and refreshed every 60s by a daemon thread.
+        self._heartbeat_path = self.db_path.parent / "heartbeat"
+        self._touch_heartbeat()
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+        # Preload the dense encoder in the background so the first search
+        # doesn't pay the full model-load latency inside a tool call.
+        threading.Thread(target=self._preload_encoder, daemon=True).start()
+
+    def _touch_heartbeat(self) -> None:
+        try:
+            self._heartbeat_path.write_text(datetime.now(timezone.utc).isoformat())
+        except Exception:
+            pass
+
+    def _heartbeat_loop(self) -> None:
+        while True:
+            time.sleep(60)
+            self._touch_heartbeat()
+
+    def _preload_encoder(self) -> None:
+        """Warm the dense encoder iff this index has dense embeddings."""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            has_dense = conn.execute(
+                "SELECT COUNT(*) FROM node_embeddings_dense LIMIT 1"
+            ).fetchone()[0]
+            conn.close()
+            if not has_dense:
+                return
+            from beacon.indexer.embedder import get_encoder
+            encoder = get_encoder()
+            t0 = time.monotonic()
+            ok = encoder.encode(["warmup"], kind="query") is not None
+            print(
+                f"[beacon] encoder preload {'ok' if ok else f'failed: {encoder.error}'} "
+                f"({time.monotonic() - t0:.0f}s)",
+                file=sys.stderr, flush=True,
+            )
+        except Exception as e:
+            print(f"[beacon] encoder preload error: {e}", file=sys.stderr, flush=True)
 
     def _log(self, entry: dict) -> None:
         """Append a JSON entry to the session log file. Never raises."""
@@ -465,13 +509,20 @@ class McpServer:
             except json.JSONDecodeError:
                 files = [files]  # treat as single path
 
-        # Resolve absolute paths relative to workspace if needed
+        # Normalise to workspace-relative paths — the index stores relative
+        # paths, and the disk fallback below joins against the workspace.
         resolved = []
         for f in files:
             p = Path(f)
-            if not p.is_absolute():
-                p = self.workspace / f
-            resolved.append(str(p.resolve()))
+            if p.is_absolute():
+                try:
+                    p = p.resolve().relative_to(self.workspace)
+                except ValueError:
+                    pass  # outside workspace — keep as given
+                resolved.append(str(p))
+            else:
+                resolved.append(f)
+        files = resolved
 
         result = get_skeleton(conn, files, detail=detail, root=str(self.workspace))
 
@@ -719,7 +770,7 @@ class McpServer:
         vexp_dir.mkdir(exist_ok=True)
         gitignore = vexp_dir / ".gitignore"
         if not gitignore.exists():
-            gitignore.write_text("index.db\nindex.db-shm\nindex.db-wal\n")
+            gitignore.write_text("index.db\nindex.db-shm\nindex.db-wal\nheartbeat\nlogs/\ntfidf.pkl\n")
         return (
             f"# beacon workspace setup\n\n"
             f"- Workspace: {root}\n"

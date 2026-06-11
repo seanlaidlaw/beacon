@@ -38,8 +38,9 @@ class CapsuleNode:
     docstring: str
     score: float
     reason: str
-    role: str = "seed"          # seed | caller | callee | co_change
+    role: str = "seed"          # seed | caller | callee | co_change | importer
     token_estimate: int = 0
+    body_preview: str = ""      # rendered for seeds so the answer is IN the capsule
 
 
 @dataclass
@@ -59,9 +60,13 @@ class Capsule:
     token_budget: int = DEFAULT_MAX_TOKENS
 
 
-def _node_to_capsule(r: SearchResult, role: str) -> CapsuleNode:
+def _node_to_capsule(r: SearchResult, role: str, include_body: bool = False) -> CapsuleNode:
+    body = (r.body_preview or "") if include_body else ""
     text = f"{r.kind} {r.fqn}\n{r.signature}\n{r.docstring}"
     text = shorten(text, width=MAX_NODE_TOKENS * CHARS_PER_TOKEN, placeholder="…")
+    if body:
+        # Body is rendered verbatim (code), so count it as-is up to the node cap
+        body = body[: MAX_NODE_TOKENS * CHARS_PER_TOKEN - len(text)]
     return CapsuleNode(
         fqn=r.fqn,
         file_path=r.file_path,
@@ -72,7 +77,8 @@ def _node_to_capsule(r: SearchResult, role: str) -> CapsuleNode:
         score=r.score,
         reason=r.reason,
         role=role,
-        token_estimate=_approx_tokens(text),
+        token_estimate=_approx_tokens(text + body),
+        body_preview=body,
     )
 
 
@@ -83,9 +89,23 @@ def _node_to_capsule(r: SearchResult, role: str) -> CapsuleNode:
 MIN_EDGE_CONFIDENCE = 0.75
 
 # Maximum number of callers/callees to expand from a single node.
-# High-degree utility nodes (loggers, helpers called everywhere) would
-# otherwise flood the capsule with irrelevant neighbors.
-MAX_BFS_FANOUT = 40
+MAX_BFS_FANOUT = 10
+
+# Hard cap on total nodes in a capsule, regardless of token budget.
+# Prevents hundreds of tiny-signature nodes from accumulating — each node adds
+# ~20 tokens of rendering overhead (headers, labels) not counted in token_estimate.
+MAX_CAPSULE_NODES = 50
+
+# Per-node rendering overhead not tracked by token_estimate:
+# "### kind `fqn`", "  File: …", "  Score: …" etc. ≈ 80 chars = 20 tokens.
+RENDER_OVERHEAD_PER_NODE = 20
+
+# Score scaling for expansion roles so all capsule nodes share one scale.
+# Seeds carry hybrid search scores (~0.2-0.8); expansion context must rank
+# below comparable seeds, never above them.
+W_NEIGHBOR  = 0.5    # × graph score (0-1) → 0-0.5
+W_CO_CHANGE = 0.4    # × coupling score (0-1) → 0-0.4
+IMPORTER_SCORE = 0.3 # flat
 
 
 def _expand_neighbors(
@@ -98,45 +118,40 @@ def _expand_neighbors(
     Returns {node_id: role} for callers and callees within *depth* hops.
 
     Edges with confidence < MIN_EDGE_CONFIDENCE are skipped (P3).
-    Nodes with more than MAX_BFS_FANOUT callers/callees are not expanded (P4).
+    Each node contributes at most MAX_BFS_FANOUT callers and MAX_BFS_FANOUT
+    callees (P4) — high-degree hubs are capped, not dropped entirely, so the
+    most central symbols still get graph context.
     """
     visited: dict[int, str] = {}
     frontier = list(seed_ids)
     prev_frontier: set[int] = set(seed_ids)
 
+    def _capped_neighbors(from_col: str, to_col: str, role: str) -> None:
+        ph = ",".join("?" * len(frontier))
+        rows = conn.execute(
+            f"""SELECT {from_col}, {to_col}
+                FROM edges
+                WHERE {from_col} IN ({ph})
+                  AND type='CALLS'
+                  AND confidence >= {MIN_EDGE_CONFIDENCE}
+                ORDER BY id""",
+            frontier,
+        ).fetchall()
+        per_node: dict[int, int] = {}
+        for src, dst in rows:
+            if per_node.get(src, 0) >= MAX_BFS_FANOUT:
+                continue
+            per_node[src] = per_node.get(src, 0) + 1
+            if dst not in visited and dst not in seed_ids:
+                visited[dst] = role
+
     for _ in range(depth):
         if not frontier:
             break
-        ph = ",".join("?" * len(frontier))
-        # Callees (source → target), confidence-filtered, fan-out capped
-        for row in conn.execute(
-            f"""SELECT DISTINCT e.target_id
-                FROM edges e
-                WHERE e.source_id IN ({ph})
-                  AND e.type='CALLS'
-                  AND e.confidence >= {MIN_EDGE_CONFIDENCE}
-                  AND (SELECT COUNT(*) FROM edges
-                       WHERE source_id = e.source_id AND type='CALLS') <= {MAX_BFS_FANOUT}""",
-            frontier,
-        ).fetchall():
-            nid = row[0]
-            if nid not in visited and nid not in seed_ids:
-                visited[nid] = "callee"
-
-        # Callers (target ← source), confidence-filtered, fan-out capped
-        for row in conn.execute(
-            f"""SELECT DISTINCT e.source_id
-                FROM edges e
-                WHERE e.target_id IN ({ph})
-                  AND e.type='CALLS'
-                  AND e.confidence >= {MIN_EDGE_CONFIDENCE}
-                  AND (SELECT COUNT(*) FROM edges
-                       WHERE target_id = e.target_id AND type='CALLS') <= {MAX_BFS_FANOUT}""",
-            frontier,
-        ).fetchall():
-            nid = row[0]
-            if nid not in visited and nid not in seed_ids:
-                visited[nid] = "caller"
+        # Callees: frontier node is the edge source
+        _capped_neighbors("source_id", "target_id", "callee")
+        # Callers: frontier node is the edge target
+        _capped_neighbors("target_id", "source_id", "caller")
 
         # Advance to only the newly discovered nodes (not all visited)
         frontier = [nid for nid in visited if nid not in seed_ids and nid not in prev_frontier]
@@ -219,7 +234,7 @@ def _importer_nodes(
                 start_line=n["start_line"] or 0,
                 signature=n["signature"] or "",
                 docstring=n["docstring"] or "",
-                score=0.3,
+                score=IMPORTER_SCORE,
                 reason=f"IMPORTS ({fp})",
             )
             cn = _node_to_capsule(sr, "importer")
@@ -252,9 +267,13 @@ def _co_change_nodes(
 
         for row in coupled:
             coupled_file, score = row[0], row[1]
+            # Prefer exported, non-test symbols — these are the file's API,
+            # not arbitrary rows. Score is scaled below seed range (W_CO_CHANGE)
+            # so co-change context never outranks direct matches.
             nodes = conn.execute(
                 """SELECT id, name, fqn, file_path, kind, start_line, signature, docstring
-                   FROM nodes WHERE file_path=? LIMIT 5""",
+                   FROM nodes WHERE file_path=?
+                   ORDER BY is_test ASC, is_exported DESC, start_line ASC LIMIT 5""",
                 (coupled_file,),
             ).fetchall()
             for n in nodes:
@@ -269,7 +288,7 @@ def _co_change_nodes(
                     start_line=n["start_line"] or 0,
                     signature=n["signature"] or "",
                     docstring=n["docstring"] or "",
-                    score=float(score),
+                    score=W_CO_CHANGE * float(score),
                     reason=f"CO_CHANGES_WITH (score {score:.2f})",
                 )
                 cn = _node_to_capsule(sr, "co_change")
@@ -312,7 +331,7 @@ def get_capsule(
     conn: sqlite3.Connection,
     query: str,
     max_tokens: int = DEFAULT_MAX_TOKENS,
-    pivot_depth: int = 2,
+    pivot_depth: int = 1,
     include_observations: bool = True,
     exclude_fqns: set[str] | None = None,
     anchor_fqns: list[str] | None = None,
@@ -339,13 +358,16 @@ def get_capsule(
     exclude = exclude_fqns or set()
 
     # ── Step 1: seed nodes ────────────────────────────────────────────────
-    seed_results = search(conn, query, limit=15, anchor_fqns=anchor_fqns,
+    # Seeds are NEVER excluded by session dedup (exclude_fqns): a refined
+    # follow-up query must return the most relevant symbols again, otherwise
+    # the second query is strictly worse than the first.
+    # Seeds carry their body preview so the capsule contains the answer,
+    # not just a pointer to it.
+    seed_results = search(conn, query, limit=8, anchor_fqns=anchor_fqns,
                           dense_query=hypothetical_code)
     seed_ids = [r.node_id for r in seed_results]
     for r in seed_results:
-        if r.fqn in exclude:
-            continue
-        cn = _node_to_capsule(r, "seed")
+        cn = _node_to_capsule(r, "seed", include_body=True)
         all_nodes.append(cn)
 
     # ── Step 2: graph expansion ───────────────────────────────────────────
@@ -367,7 +389,9 @@ def get_capsule(
                 start_line=row["start_line"] or 0,
                 signature=row["signature"] or "",
                 docstring=row["docstring"] or "",
-                score=graph_scores.get(row["id"], 0.0),
+                # Graph score is normalised within the neighbor set; scale it
+                # below seed range so expansion never outranks direct matches.
+                score=W_NEIGHBOR * graph_scores.get(row["id"], 0.0),
                 reason=role,
             )
             cn = _node_to_capsule(sr, role)
@@ -389,18 +413,24 @@ def get_capsule(
         all_nodes.extend(cn for cn in imp_nodes if cn.fqn not in exclude)
 
     # ── Step 4: deduplicate and sort by score ─────────────────────────────
+    # Session dedup (exclude_fqns) applies to expansion roles only — seeds
+    # were intentionally kept in Step 1.
     seen_fqns: set[str] = set()
     deduped: list[CapsuleNode] = []
     for cn in sorted(all_nodes, key=lambda x: x.score, reverse=True):
+        if cn.role != "seed" and cn.fqn in exclude:
+            continue
         if cn.fqn not in seen_fqns:
             seen_fqns.add(cn.fqn)
             deduped.append(cn)
 
     # P2: Penalise test nodes and unexported symbols when the query is not
-    # test-focused, so production code rises above boilerplate in the budget.
+    # test-focused. Seeds are already penalised inside search() (before the
+    # seed cut-off), so only expansion nodes are adjusted here.
     query_is_test = any(t in query.lower() for t in ("test", "spec", "fixture", "mock"))
-    if not query_is_test and deduped:
-        fqns = [cn.fqn for cn in deduped]
+    expansion = [cn for cn in deduped if cn.role != "seed"]
+    if not query_is_test and expansion:
+        fqns = [cn.fqn for cn in expansion]
         ph2 = ",".join("?" * len(fqns))
         flags = {
             row[0]: (bool(row[1]), bool(row[2]))
@@ -408,7 +438,7 @@ def get_capsule(
                 f"SELECT fqn, is_test, is_exported FROM nodes WHERE fqn IN ({ph2})", fqns
             ).fetchall()
         }
-        for cn in deduped:
+        for cn in expansion:
             is_test, is_exported = flags.get(cn.fqn, (False, True))
             if is_test:
                 cn.score *= 0.3      # strongly demote test symbols
@@ -420,7 +450,9 @@ def get_capsule(
     # ── Step 5: budget trim ───────────────────────────────────────────────
     used = 0
     for cn in unique_nodes:
-        tok = min(cn.token_estimate, MAX_NODE_TOKENS)
+        if len(cap.nodes) >= MAX_CAPSULE_NODES:
+            break
+        tok = min(cn.token_estimate, MAX_NODE_TOKENS) + RENDER_OVERHEAD_PER_NODE
         if used + tok > budget:
             break
         cap.nodes.append(cn)
@@ -473,6 +505,10 @@ def render_capsule(cap: Capsule) -> str:
             if n.docstring:
                 lines.append(f"  Docstring: {n.docstring[:200]}")
             lines.append(f"  Score: {n.score:.3f}  ({n.reason})")
+            if n.body_preview:
+                lines.append("  ```")
+                lines.append(n.body_preview.rstrip())
+                lines.append("  ```")
 
     if cap.observations:
         lines.append("\n## Memory observations")

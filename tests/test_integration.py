@@ -430,8 +430,10 @@ class TestCLISmoke:
         assert "mcpServers" in cfg
         assert "beacon" in cfg["mcpServers"]
 
-    def test_setup_writes_mcp_to_project_settings_not_global(self, project, tmp_path):
-        """MCP config must land in .claude/settings.json, NOT in ~/.claude.json."""
+    def test_setup_writes_mcp_to_project_mcp_json_not_global(self, project, tmp_path):
+        """MCP config must land in the project's .mcp.json (where Claude Code
+        reads project-level servers), NOT in ~/.claude.json and NOT in
+        .claude/settings.json (which doesn't support mcpServers)."""
         import json as _json
 
         global_cfg = Path.home() / ".claude.json"
@@ -442,12 +444,16 @@ class TestCLISmoke:
 
         self._run("setup", str(project))
 
-        # Project settings must contain the MCP entry
+        # Project .mcp.json must contain the MCP entry
+        mcp_cfg = _json.loads((project / ".mcp.json").read_text())
+        assert "beacon" in mcp_cfg.get("mcpServers", {}), \
+            "MCP server entry missing from project .mcp.json"
+
+        # .claude/settings.json must NOT carry mcpServers (wrong location)
         project_settings = _json.loads(
             (project / ".claude" / "settings.json").read_text()
         )
-        assert "beacon" in project_settings.get("mcpServers", {}), \
-            "MCP server entry missing from project .claude/settings.json"
+        assert "mcpServers" not in project_settings
 
         # Global config must NOT have gained a new beacon entry
         after_global = (

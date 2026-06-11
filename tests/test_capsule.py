@@ -136,16 +136,16 @@ class TestExpandNeighbors:
         assert hop1 in result
         assert hop2 in result
 
-    def test_fanout_cap_prevents_expansion_of_high_degree_node(self):
+    def test_fanout_cap_limits_expansion_of_high_degree_node(self):
         conn = _make_db()
-        # Insert a hub node with MAX_BFS_FANOUT + 1 callees
+        # Insert a hub node with MAX_BFS_FANOUT + 10 callees
         hub = _insert_node(conn, name="hub", fqn="a::hub")
-        for i in range(MAX_BFS_FANOUT + 1):
+        for i in range(MAX_BFS_FANOUT + 10):
             callee = _insert_node(conn, name=f"callee_{i}", fqn=f"a::callee_{i}")
             _insert_edge(conn, hub, callee, confidence=1.0)
         result = _expand_neighbors(conn, [hub], depth=1)
-        # Hub has too many callees (> MAX_BFS_FANOUT) → should NOT be expanded
-        assert len(result) == 0
+        # Hub is capped at MAX_BFS_FANOUT callees — not dropped entirely
+        assert len(result) == MAX_BFS_FANOUT
 
     def test_node_within_fanout_limit_is_expanded(self):
         conn = _make_db()
@@ -275,3 +275,61 @@ class TestGetCapsuleP2Penalties:
         cap = get_capsule(conn, "anything at all", max_tokens=8000)
         assert cap.nodes == []
         assert cap.token_estimate == 0
+
+
+# ── Session dedup must never exclude seeds ───────────────────────────────────
+
+class TestSeedExclusion:
+    def test_seed_still_returned_when_in_exclude_set(self):
+        conn = _make_db()
+        _insert_node(conn, name="csrf_middleware", fqn="a::csrf_middleware",
+                     docstring="csrf middleware protection")
+        cap = get_capsule(conn, "csrf middleware", max_tokens=8000,
+                          exclude_fqns={"a::csrf_middleware"})
+        fqns = [n.fqn for n in cap.nodes]
+        # A refined follow-up query must return the relevant symbol again
+        assert "a::csrf_middleware" in fqns
+
+    def test_expansion_nodes_are_excluded(self):
+        conn = _make_db()
+        seed = _insert_node(conn, name="csrf_middleware", fqn="a::csrf_middleware",
+                            docstring="csrf middleware protection")
+        callee = _insert_node(conn, name="get_token", fqn="a::get_token")
+        _insert_edge(conn, seed, callee, confidence=1.0)
+        cap = get_capsule(conn, "csrf middleware", max_tokens=8000,
+                          exclude_fqns={"a::get_token"})
+        roles = {n.fqn: n.role for n in cap.nodes}
+        assert "a::get_token" not in roles
+
+
+# ── Capsule contains code, not just pointers ─────────────────────────────────
+
+class TestCapsuleBody:
+    def test_seed_includes_body_preview(self):
+        conn = _make_db()
+        conn.execute(
+            """INSERT INTO nodes (name, fqn, file_path, kind, start_line,
+               signature, docstring, body_preview, is_exported, is_test, repo_alias)
+               VALUES ('parse_config', 'cfg::parse_config', 'cfg.py', 'function', 1,
+                       'def parse_config(path):', 'Parse config',
+                       'with open(path) as f:\n    return yaml.safe_load(f)',
+                       1, 0, 'primary')""")
+        conn.commit()
+        cap = get_capsule(conn, "parse_config", max_tokens=8000)
+        seeds = [n for n in cap.nodes if n.role == "seed" and n.fqn == "cfg::parse_config"]
+        assert seeds and "yaml.safe_load" in seeds[0].body_preview
+
+    def test_render_capsule_shows_body(self):
+        from beacon.search.capsule import render_capsule
+        conn = _make_db()
+        conn.execute(
+            """INSERT INTO nodes (name, fqn, file_path, kind, start_line,
+               signature, docstring, body_preview, is_exported, is_test, repo_alias)
+               VALUES ('parse_config', 'cfg::parse_config', 'cfg.py', 'function', 1,
+                       'def parse_config(path):', 'Parse config',
+                       'with open(path) as f:\n    return yaml.safe_load(f)',
+                       1, 0, 'primary')""")
+        conn.commit()
+        cap = get_capsule(conn, "parse_config", max_tokens=8000)
+        rendered = render_capsule(cap)
+        assert "yaml.safe_load" in rendered

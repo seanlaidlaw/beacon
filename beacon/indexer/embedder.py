@@ -172,9 +172,18 @@ def is_model_cached(model_name: str) -> bool:
         return False
 
 
+# Instruction-tuned embedding models (e.g. jina-code-embeddings) are trained
+# with distinct task prefixes for queries vs. passages. Encoding raw text on
+# either side measurably degrades NL→code retrieval. We resolve the prompt
+# name dynamically from the model's own prompt registry so this works across
+# models (and is a no-op for models without prompts, like jina-v2-base-code).
+_QUERY_PROMPT_KEYS = ("nl2code_query", "retrieval_query", "query")
+_PASSAGE_PROMPT_KEYS = ("nl2code_passage", "retrieval_passage", "passage", "document")
+
+
 class SentenceEncoder:
     """
-    Wraps jinaai/jina-embeddings-v2-base-code via sentence-transformers.
+    Wraps the configured dense model via sentence-transformers.
 
     Using sentence-transformers rather than raw transformers/AutoModel avoids:
     - trust_remote_code warnings (sentence-transformers handles Jina natively)
@@ -208,16 +217,36 @@ class SentenceEncoder:
             self._failed = True
             return False
 
-    def encode(self, texts: list[str]) -> np.ndarray | None:
-        """Encode texts. Returns (N, dim) float32 L2-normalised array or None on failure."""
+    def _resolve_prompt(self, kind: str | None) -> str | None:
+        """Map kind ('query'|'passage') to a prompt name the model defines."""
+        if not kind:
+            return None
+        prompts = getattr(self._model, "prompts", None) or {}
+        keys = _QUERY_PROMPT_KEYS if kind == "query" else _PASSAGE_PROMPT_KEYS
+        for k in keys:
+            if prompts.get(k):
+                return k
+        return None
+
+    def encode(self, texts: list[str], kind: str | None = None) -> np.ndarray | None:
+        """Encode texts. Returns (N, dim) float32 L2-normalised array or None on failure.
+
+        kind='query' or 'passage' selects the model's instruction prompt for
+        that side of asymmetric retrieval, when the model defines one.
+        """
         if not self._load():
             return None
         try:
+            kwargs = {}
+            prompt_name = self._resolve_prompt(kind)
+            if prompt_name:
+                kwargs["prompt_name"] = prompt_name
             vecs = self._model.encode(
                 texts,
                 batch_size=_BATCH_SIZE,
                 normalize_embeddings=True,
                 show_progress_bar=False,
+                **kwargs,
             )
             return vecs.astype(np.float32)
         except Exception as e:
@@ -245,7 +274,7 @@ def build_dense(conn: sqlite3.Connection) -> None:
 
     encoder = get_encoder()
     texts = [_node_text(r) for r in rows]
-    vecs = encoder.encode(texts)
+    vecs = encoder.encode(texts, kind="passage")
     if vecs is None:
         print("Dense embeddings: skipped (model unavailable)")
         return
@@ -286,7 +315,7 @@ def build_dense_incremental(
 
     encoder = get_encoder()
     texts = [_node_text(r) for r in rows]
-    vecs = encoder.encode(texts)
+    vecs = encoder.encode(texts, kind="passage")
     if vecs is None:
         return 0, encoder.error or "model unavailable"
 

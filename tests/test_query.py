@@ -72,6 +72,25 @@ class TestFts5Query:
         result = _fts5_query("CsrfViewMiddleware")
         assert "CsrfViewMiddleware" in result
 
+    def test_drops_question_stopwords(self):
+        # Question words ("how", "does", "where", "when") previously leaked
+        # into the FTS5 OR expression and matched test names like
+        # test_anchored_does_not_match_nested.
+        result = _fts5_query("how does auto reindexing detect changed files")
+        lowered = [t.lower() for t in result.split(" OR ")]
+        assert "how" not in lowered
+        assert "does" not in lowered
+        assert "reindexing" in lowered
+        assert "detect" in lowered
+
+    def test_drops_modal_stopwords(self):
+        result = _fts5_query("where should the index be refreshed")
+        lowered = [t.lower() for t in result.split(" OR ")]
+        assert "where" not in lowered
+        assert "should" not in lowered
+        assert "index" in lowered
+        assert "refreshed" in lowered
+
 
 # ── _make_reason ──────────────────────────────────────────────────────────────
 
@@ -302,6 +321,51 @@ class TestSearch:
         fqns_without = [r.fqn for r in results_without]
         assert "auth::authenticate_user" in fqns_with
         assert "auth::authenticate_user" in fqns_without
+
+    def test_dense_only_candidate_is_surfaced(self, monkeypatch):
+        """A node with zero keyword overlap must still appear when the dense
+        layer scores it highly — semantic search is not BM25-gated anymore."""
+        from beacon.search import query as query_mod
+        conn = _make_db()
+        # No keyword overlap with the query at all
+        nid = _insert_node(conn, name="walk_tree", fqn="fs::walk_tree",
+                           docstring="recursively visit directory entries")
+        monkeypatch.setattr(query_mod, "_dense_all_scores",
+                            lambda c, q: {nid: 0.92})
+        results = search(conn, "enumerate folder contents")
+        fqns = [r.fqn for r in results]
+        assert "fs::walk_tree" in fqns
+        hit = next(r for r in results if r.fqn == "fs::walk_tree")
+        assert hit.score_breakdown["semantic"] == pytest.approx(0.92, abs=0.01)
+
+    def test_test_nodes_penalised_before_ranking(self):
+        """is_test penalty applies inside search() so tests don't crowd out
+        production code from the seed slots."""
+        conn = _make_db()
+        _insert_node(conn, name="csrf_middleware", fqn="a::csrf_middleware",
+                     docstring="csrf middleware protection")
+        conn.execute(
+            """INSERT INTO nodes (name, fqn, file_path, kind, start_line,
+               signature, docstring, is_exported, is_test, repo_alias)
+               VALUES ('test_csrf', 'a::test_csrf', 'test_a.py', 'function', 1,
+                       '', 'csrf middleware protection', 1, 1, 'primary')""")
+        conn.commit()
+        results = search(conn, "csrf middleware protection")
+        by_fqn = {r.fqn: r.score for r in results}
+        assert by_fqn["a::csrf_middleware"] > by_fqn["a::test_csrf"]
+
+    def test_body_preview_populated_on_results(self):
+        conn = _make_db()
+        conn.execute(
+            """INSERT INTO nodes (name, fqn, file_path, kind, start_line,
+               signature, docstring, body_preview, is_exported, is_test, repo_alias)
+               VALUES ('parse_config', 'cfg::parse_config', 'cfg.py', 'function', 1,
+                       'def parse_config(path):', 'Parse the config file',
+                       'with open(path) as f:\n    return yaml.safe_load(f)', 1, 0, 'primary')""")
+        conn.commit()
+        results = search(conn, "parse_config")
+        hit = next(r for r in results if r.fqn == "cfg::parse_config")
+        assert "yaml.safe_load" in hit.body_preview
 
     def test_dense_query_parameter_is_accepted(self):
         """search() accepts dense_query without raising — no dense embeddings in
